@@ -167,8 +167,16 @@ async function onLoggedIn(user) {
 // ── Open sidebar button ───────────────────────────────────────────────────────
 document.getElementById('openSidebar').addEventListener('click', () => {
   chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
-    if (tabs[0]?.url?.includes('linkedin.com')) { window.close(); }
-    else { chrome.tabs.create({ url: 'https://www.linkedin.com' }); window.close(); }
+    const currentUrl = tabs[0]?.url || '';
+    if (currentUrl.includes('linkedin.com/in/')) {
+      window.close();
+    } else if (currentUrl.includes('linkedin.com')) {
+      chrome.tabs.update(tabs[0].id, { url: 'https://www.linkedin.com/search/results/people/?keywords=recruiter' });
+      window.close();
+    } else {
+      chrome.tabs.create({ url: 'https://www.linkedin.com/search/results/people/?keywords=recruiter' });
+      window.close();
+    }
   });
 });
 
