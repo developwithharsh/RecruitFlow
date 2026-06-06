@@ -878,6 +878,12 @@
       usage.daily_limit = selectedLimit;
       await storageSet({ recruitflow_usage: usage });
 
+      // Pre-load default templates if none exist yet
+      const existingTemplates = await storageGet('recruitflow_templates');
+      if (!existingTemplates || !existingTemplates.length) {
+        await storageSet({ recruitflow_templates: DEFAULT_TEMPLATES });
+      }
+
       // Animate card out then show main UI
       card.style.transition = 'opacity 0.4s, transform 0.4s';
       card.style.opacity    = '0';
