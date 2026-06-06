@@ -388,12 +388,21 @@
   new MutationObserver(() => {
     if (location.href !== lastUrl) {
       lastUrl = location.href;
+      // Ensure sidebar exists on every LinkedIn SPA navigation
+      if (!document.getElementById('recruitflow-sidebar-container')) {
+        injectSidebar();
+      }
       if (location.href.includes('/in/')) {
+        // On a profile page — re-read and broadcast updated profile
         setTimeout(() => {
           const profile = readProfile();
           updateBanner(profile);
           try { chrome.runtime.sendMessage({ type: 'PROFILE_UPDATED', profile }); } catch (_) {}
         }, 1600);
+      } else {
+        // Not a profile — clear the profile banner so stale data isn't shown
+        updateBanner({ name: 'Visit a LinkedIn profile', role: '', company: '', location: '', profileUrl: '' });
+        try { chrome.runtime.sendMessage({ type: 'PROFILE_UPDATED', profile: null }); } catch (_) {}
       }
     }
   }).observe(document, { subtree: true, childList: true });

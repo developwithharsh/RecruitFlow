@@ -54,34 +54,27 @@ document.addEventListener('DOMContentLoaded', async () => {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       const url   = tab?.url || '';
 
-      if (url.includes('linkedin.com/in/')) {
-        // On a LinkedIn profile — ensure sidebar is visible, then close popup
+      if (url.includes('linkedin.com')) {
+        // On any LinkedIn page — show/inject the sidebar directly
         await chrome.scripting.executeScript({
           target: { tabId: tab.id },
           func: () => {
             const container = document.getElementById('recruitflow-sidebar-container');
             if (container) {
-              // Already injected — uncollapse it
+              // Already injected — just uncollapse
               container.classList.remove('collapsed');
             } else {
-              // Not injected yet — fire the force-inject event
+              // Content script loaded but sidebar not injected yet — trigger it
               window.dispatchEvent(new CustomEvent('rf-force-inject'));
             }
           }
         });
         window.close();
 
-      } else if (url.includes('linkedin.com')) {
-        // On LinkedIn but not a profile — go to people search
-        await chrome.tabs.update(tab.id, {
-          url: 'https://www.linkedin.com/search/results/people/?keywords=recruiter'
-        });
-        window.close();
-
       } else {
-        // Not on LinkedIn — open it in the current tab
+        // Not on LinkedIn — open LinkedIn in current tab (content script will auto-inject)
         await chrome.tabs.update(tab.id, {
-          url: 'https://www.linkedin.com/search/results/people/?keywords=recruiter'
+          url: 'https://www.linkedin.com/feed/'
         });
         window.close();
       }
