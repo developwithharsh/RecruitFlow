@@ -855,3 +855,188 @@
 .rf-badge-replied      { background: #D1FAE5 !important; color: #065F46 !important; }
 .rf-badge-notinterested{ background: #FEE2E2 !important; color: #991B1B !important; }
 .rf-badge-hired        { background: #FEF3C7 !important; color: #92400E !important; }
+
+/* ── ONBOARDING SCREEN (Step 5) ─────────────────────────────────────────── */
+#rf-onboarding {
+  flex: 1 !important;
+  overflow-y: auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.rf-onboard-wrap {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 16px !important;
+  padding: 20px 16px 32px !important;
+}
+
+.rf-onboard-hero {
+  text-align: center !important;
+  padding: 8px 0 4px !important;
+}
+
+.rf-onboard-icon-ring {
+  width: 64px !important;
+  height: 64px !important;
+  border-radius: 18px !important;
+  background: linear-gradient(135deg, #2563EB, #7C3AED) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin: 0 auto 14px !important;
+}
+
+.rf-onboard-icon {
+  font-size: 20px !important;
+  font-weight: 700 !important;
+  color: white !important;
+  letter-spacing: -0.5px !important;
+}
+
+.rf-onboard-title {
+  font-size: 17px !important;
+  font-weight: 700 !important;
+  color: #0F172A !important;
+  margin: 0 0 6px !important;
+  line-height: 1.3 !important;
+  padding: 0 !important;
+}
+
+.rf-onboard-sub {
+  font-size: 12px !important;
+  color: #64748B !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  line-height: 1.6 !important;
+}
+
+.rf-step-dots {
+  display: flex !important;
+  gap: 6px !important;
+  justify-content: center !important;
+}
+
+.rf-dot {
+  width: 6px !important;
+  height: 6px !important;
+  border-radius: 50% !important;
+  background: #E2E8F0 !important;
+  display: inline-block !important;
+}
+
+.rf-dot-active {
+  width: 18px !important;
+  border-radius: 3px !important;
+  background: #2563EB !important;
+}
+
+.rf-onboard-form {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 12px !important;
+}
+
+.rf-field-group { display: flex !important; flex-direction: column !important; gap: 4px !important; }
+
+.rf-required { color: #EF4444 !important; }
+
+.rf-hint {
+  font-size: 10px !important;
+  color: #94A3B8 !important;
+  margin: 4px 0 0 !important;
+  padding: 0 !important;
+}
+
+.rf-limit-options {
+  display: grid !important;
+  grid-template-columns: repeat(3, 1fr) !important;
+  gap: 6px !important;
+}
+
+.rf-limit-opt {
+  padding: 8px 4px !important;
+  border: 1.5px solid #E2E8F0 !important;
+  border-radius: 8px !important;
+  background: white !important;
+  cursor: pointer !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  color: #0F172A !important;
+  text-align: center !important;
+  line-height: 1.4 !important;
+  transition: all 0.15s !important;
+  font-family: var(--rf-font) !important;
+}
+
+.rf-limit-opt span {
+  font-size: 10px !important;
+  font-weight: 400 !important;
+  color: #94A3B8 !important;
+  display: block !important;
+}
+
+.rf-limit-opt:hover { border-color: #2563EB !important; background: #EFF6FF !important; }
+
+.rf-limit-opt-active {
+  border-color: #2563EB !important;
+  background: #EFF6FF !important;
+  color: #1D4ED8 !important;
+}
+
+.rf-limit-opt-active span { color: #3B82F6 !important; }
+
+.rf-onboard-perks {
+  background: #F8FAFC !important;
+  border-radius: 10px !important;
+  border: 1px solid #E2E8F0 !important;
+  padding: 12px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+}
+
+.rf-perk {
+  display: flex !important;
+  align-items: flex-start !important;
+  gap: 10px !important;
+}
+
+.rf-perk-icon {
+  font-size: 14px !important;
+  color: #2563EB !important;
+  flex-shrink: 0 !important;
+  margin-top: 1px !important;
+  width: 20px !important;
+  text-align: center !important;
+}
+
+.rf-perk-title {
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: #0F172A !important;
+  margin: 0 0 1px !important;
+  padding: 0 !important;
+}
+
+.rf-perk-desc {
+  font-size: 11px !important;
+  color: #94A3B8 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.rf-ob-cta {
+  padding: 13px !important;
+  font-size: 14px !important;
+  border-radius: 10px !important;
+  width: 100% !important;
+}
+
+.rf-onboard-note {
+  font-size: 11px !important;
+  color: #94A3B8 !important;
+  text-align: center !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}

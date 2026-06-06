@@ -281,6 +281,10 @@
         <button id="rf-clear-data-btn" class="rf-btn-danger">Clear All Data</button>
       </div>
       <div class="rf-version-line">RecruitFlow v1.0.0 — Free Tier</div>
+      <!-- DEV ONLY: remove before publishing to Chrome Web Store -->
+      <button id="rf-reset-onboard" class="rf-btn-secondary rf-btn-sm" style="margin-top:8px;font-size:11px;color:#94A3B8 !important;border-color:#E2E8F0 !important;width:100% !important;">
+        ↺ Reset onboarding (dev only)
+      </button>
     </div>
   </div>
 
@@ -393,6 +397,15 @@
       }
     }
   }).observe(document, { subtree: true, childList: true });
+
+  // ── Force inject from popup (Step 4) ─────────────────────────────────────
+  window.addEventListener('rf-force-inject', () => {
+    if (!document.getElementById('recruitflow-sidebar-container')) {
+      injectSidebar();
+    } else {
+      document.getElementById('recruitflow-sidebar-container')?.classList.remove('collapsed');
+    }
+  });
 
   // ── Boot ──────────────────────────────────────────────────────────────────
   if (document.readyState === 'loading') {

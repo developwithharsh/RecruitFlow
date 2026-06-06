@@ -716,6 +716,15 @@
       showToast('All data cleared. Reloading…', 'warning');
       setTimeout(() => location.reload(), 1500);
     });
+
+    // DEV ONLY: reset onboarding — remove before publishing to Chrome Web Store
+    document.getElementById('rf-reset-onboard')?.addEventListener('click', async () => {
+      const s = (await storageGet('recruitflow_settings')) || {};
+      s.onboarding_complete = false;
+      await storageSet({ recruitflow_settings: s });
+      showToast('Onboarding reset. Reloading…', 'success');
+      setTimeout(() => location.reload(), 1500);
+    });
   }
 
   // ── Tab switching ────────────────────────────────────────────────────────
@@ -740,8 +749,151 @@
     }
   }
 
-  // ── Init ─────────────────────────────────────────────────────────────────
-  async function init() {
+  // ── Onboarding (Step 5) ──────────────────────────────────────────────────
+  async function showOnboarding() {
+    const container = document.getElementById('recruitflow-sidebar-container');
+    const sidebar   = container?.querySelector('.rf-sidebar');
+    if (!sidebar) return;
+
+    // Hide tabs and all panels while onboarding is shown
+    const tabsEl  = sidebar.querySelector('.rf-tabs');
+    const panels  = sidebar.querySelectorAll('.rf-panel');
+    const header  = sidebar.querySelector('.rf-header');
+    if (tabsEl) tabsEl.style.display = 'none';
+    panels.forEach(p => { p.style.display = 'none'; });
+
+    const card = document.createElement('div');
+    card.id = 'rf-onboarding';
+    card.innerHTML = `
+      <div class="rf-onboard-wrap">
+        <div class="rf-onboard-hero">
+          <div class="rf-onboard-icon-ring">
+            <div class="rf-onboard-icon">RF</div>
+          </div>
+          <h2 class="rf-onboard-title">Welcome to RecruitFlow</h2>
+          <p class="rf-onboard-sub">Send personalised LinkedIn messages in 1 click.<br>Let's set you up in 30 seconds.</p>
+        </div>
+        <div class="rf-step-dots">
+          <span class="rf-dot rf-dot-active"></span>
+          <span class="rf-dot"></span>
+          <span class="rf-dot"></span>
+        </div>
+        <div class="rf-onboard-form">
+          <div class="rf-field-group">
+            <label class="rf-label">Your full name <span class="rf-required">*</span></label>
+            <input id="rf-ob-name" type="text" class="rf-input" placeholder="e.g. Rahul Sharma" autocomplete="name">
+          </div>
+          <div class="rf-field-group">
+            <label class="rf-label">Your company name <span class="rf-required">*</span></label>
+            <input id="rf-ob-company" type="text" class="rf-input" placeholder="e.g. TechHire Solutions" autocomplete="organization">
+          </div>
+          <div class="rf-field-group">
+            <label class="rf-label">Daily message limit</label>
+            <div class="rf-limit-options" id="rf-ob-limit-options">
+              <button class="rf-limit-opt" data-val="20">20 / day<br><span>Conservative</span></button>
+              <button class="rf-limit-opt rf-limit-opt-active" data-val="50">50 / day<br><span>Recommended</span></button>
+              <button class="rf-limit-opt" data-val="80">80 / day<br><span>Aggressive</span></button>
+            </div>
+            <p class="rf-hint">LinkedIn's safe limit is ~50–60 messages/day</p>
+          </div>
+        </div>
+        <div class="rf-onboard-perks">
+          <div class="rf-perk">
+            <span class="rf-perk-icon">✦</span>
+            <div>
+              <p class="rf-perk-title">3 free AI messages included</p>
+              <p class="rf-perk-desc">AI writes personalised messages for each candidate</p>
+            </div>
+          </div>
+          <div class="rf-perk">
+            <span class="rf-perk-icon">↗</span>
+            <div>
+              <p class="rf-perk-title">Unlimited template sending</p>
+              <p class="rf-perk-desc">Save templates, auto-fill names and roles forever</p>
+            </div>
+          </div>
+          <div class="rf-perk">
+            <span class="rf-perk-icon">◎</span>
+            <div>
+              <p class="rf-perk-title">Outreach tracker built in</p>
+              <p class="rf-perk-desc">Logs every message automatically</p>
+            </div>
+          </div>
+        </div>
+        <button id="rf-ob-submit" class="rf-btn-ai rf-ob-cta">✦ Get Started — It's Free</button>
+        <p class="rf-onboard-note">No account needed · All data stays on your device</p>
+      </div>
+    `;
+
+    if (header && header.nextSibling) {
+      sidebar.insertBefore(card, header.nextSibling);
+    } else {
+      sidebar.appendChild(card);
+    }
+
+    // Limit option buttons
+    let selectedLimit = 50;
+    card.querySelectorAll('.rf-limit-opt').forEach(btn => {
+      btn.addEventListener('click', () => {
+        card.querySelectorAll('.rf-limit-opt').forEach(b => b.classList.remove('rf-limit-opt-active'));
+        btn.classList.add('rf-limit-opt-active');
+        selectedLimit = parseInt(btn.dataset.val);
+      });
+    });
+
+    // Get Started submission
+    card.querySelector('#rf-ob-submit').addEventListener('click', async () => {
+      const nameInput    = document.getElementById('rf-ob-name');
+      const companyInput = document.getElementById('rf-ob-company');
+      const name    = nameInput?.value?.trim();
+      const company = companyInput?.value?.trim();
+
+      if (!name) {
+        nameInput.style.borderColor = '#EF4444';
+        nameInput.focus();
+        setTimeout(() => { nameInput.style.borderColor = ''; }, 2000);
+        return;
+      }
+      if (!company) {
+        companyInput.style.borderColor = '#EF4444';
+        companyInput.focus();
+        setTimeout(() => { companyInput.style.borderColor = ''; }, 2000);
+        return;
+      }
+
+      // Save settings + mark onboarding done
+      const existing = (await storageGet('recruitflow_settings')) || {};
+      await storageSet({
+        recruitflow_settings: {
+          ...existing,
+          recruiter_name:      name,
+          recruiter_company:   company,
+          daily_limit:         selectedLimit,
+          onboarding_complete: true
+        }
+      });
+
+      // Also update usage daily limit
+      const usage = await getUsage();
+      usage.daily_limit = selectedLimit;
+      await storageSet({ recruitflow_usage: usage });
+
+      // Animate card out then show main UI
+      card.style.transition = 'opacity 0.4s, transform 0.4s';
+      card.style.opacity    = '0';
+      card.style.transform  = 'translateY(-12px)';
+
+      setTimeout(async () => {
+        card.remove();
+        if (tabsEl) tabsEl.style.display = '';
+        await initMain();
+        showToast(`Welcome, ${name.split(' ')[0]}! Let's start recruiting 🚀`, 'success');
+      }, 400);
+    });
+  }
+
+  // ── Main sidebar initialisation ──────────────────────────────────────────
+  async function initMain() {
     document.querySelectorAll('.rf-tab-btn').forEach(btn =>
       btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
 
@@ -761,23 +913,35 @@
       refreshLimitBar()
     ]);
 
-    // Read profile from DOM on startup so currentProfile is populated immediately
+    // Read profile from DOM immediately so templates fill correctly
     currentProfile = readProfileFromDOM();
     updateProfileBanner(currentProfile);
     await fillAndPreview();
 
-    switchTab('jd');
+    // Show JD tab first if no JDs saved yet, otherwise Message tab
+    const jds = (await storageGet('recruitflow_jds')) || [];
+    switchTab(jds.length === 0 ? 'jd' : 'message');
 
     // Daily reset check every 5 minutes
     setInterval(() => checkAndResetDay(), 5 * 60 * 1000);
   }
 
-  // ── Listen for profile updates sent by content.js ─────────────────────────
+  // ── Entry point: check onboarding then branch ────────────────────────────
+  async function init() {
+    const settings = (await storageGet('recruitflow_settings')) || {};
+    if (!settings.onboarding_complete) {
+      await showOnboarding();
+    } else {
+      await initMain();
+    }
+  }
+
+  // ── Listen for profile updates from content.js SPA navigation ────────────
   chrome.runtime.onMessage.addListener(msg => {
     if (msg.type === 'PROFILE_UPDATED') { updateProfileBanner(msg.profile); fillAndPreview(); }
   });
 
-  // ── Boot when DOM is ready ────────────────────────────────────────────────
+  // ── Boot when sidebar HTML is in the DOM ─────────────────────────────────
   function tryInit() {
     if (document.getElementById('rf-send-btn')) { init(); }
     else { setTimeout(tryInit, 200); }

@@ -179,4 +179,18 @@ body {
   font-family: inherit; font-size: 12px; color: #94A3B8;
   padding: 0; transition: color 0.2s;
 }
-.logout-btn:hover { color: #DC2626; }
+.logout-btn:hover { color: #2563EB; }
+
+.popup-greeting {
+  font-size: 13px;
+  font-weight: 500;
+  color: #64748B;
+  text-align: center;
+  margin: -4px 16px 0;
+}
+
+#openSidebar:hover {
+  box-shadow: 0 4px 16px rgba(37, 99, 235, 0.3);
+  transform: translateY(-1px);
+  transition: all 0.2s;
+}
