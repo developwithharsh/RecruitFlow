@@ -2,7 +2,7 @@ const GROQ_API_KEY = "YOUR_GROQ_API_KEY_HERE";
 const GROQ_MODEL = "llama3-70b-8192";
 const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
 
-const GEMINI_API_KEY = "YOUR_GEMINI_API_KEY_HERE";
+const GEMINI_API_KEY = "AQ.Ab8RN6JpZ42EF8PbvyTWdNgxEi4-BqFbBk4Vsu2mi4DJhj792Q";
 const GEMINI_MODEL = "gemini-1.5-flash";
 const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
