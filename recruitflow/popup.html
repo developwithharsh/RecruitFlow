@@ -2,92 +2,154 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>RecruitFlow</title>
   <link rel="stylesheet" href="popup.css">
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
+
+<!-- ══════════════════════════════════════════════
+     AUTH VIEW  (shown when not logged in)
+════════════════════════════════════════════════ -->
+<div id="auth-view">
+  <!-- Header -->
   <div class="popup-header">
     <div class="logo">
       <div class="logo-icon">RF</div>
       <span class="logo-text">RecruitFlow</span>
     </div>
-    <button class="refresh-btn" id="refreshBtn" title="Refresh stats">↻</button>
+  </div>
+
+  <!-- Mini hero -->
+  <div class="auth-hero">
+    <svg width="120" height="80" viewBox="0 0 120 80" fill="none">
+      <radialGradient id="ag" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="#7C3AED" stop-opacity=".18"/>
+        <stop offset="100%" stop-color="#7C3AED" stop-opacity="0"/>
+      </radialGradient>
+      <ellipse cx="60" cy="40" rx="55" ry="38" fill="url(#ag)"/>
+      <circle cx="60" cy="35" r="18" fill="#EFF6FF" stroke="#2563EB" stroke-width="1.5"/>
+      <circle cx="60" cy="30" r="6" fill="#2563EB"/>
+      <path d="M46 44 Q60 37 74 44" stroke="#2563EB" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      <circle cx="24" cy="28" r="10" fill="#EDE9FE" stroke="#7C3AED" stroke-width="1.2"/>
+      <circle cx="24" cy="24" r="3.5" fill="#7C3AED"/>
+      <path d="M17 33 Q24 28 31 33" stroke="#7C3AED" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+      <circle cx="96" cy="28" r="10" fill="#EDE9FE" stroke="#7C3AED" stroke-width="1.2"/>
+      <circle cx="96" cy="24" r="3.5" fill="#7C3AED"/>
+      <path d="M89 33 Q96 28 103 33" stroke="#7C3AED" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+      <path d="M34 33 Q47 25 52 35" stroke="#93C5FD" stroke-width="1" stroke-dasharray="3 2" fill="none"/>
+      <path d="M86 33 Q73 25 68 35" stroke="#C4B5FD" stroke-width="1" stroke-dasharray="3 2" fill="none"/>
+    </svg>
+    <div class="auth-hero-text">AI-powered LinkedIn outreach</div>
+  </div>
+
+  <!-- Auth toggle -->
+  <div class="auth-toggle">
+    <button class="auth-toggle-btn active" id="tab-login"  data-form="login-form">Sign In</button>
+    <button class="auth-toggle-btn"        id="tab-signup" data-form="signup-form">Sign Up</button>
+  </div>
+
+  <!-- LOGIN FORM -->
+  <form id="login-form" class="auth-form" autocomplete="on">
+    <div class="field-group">
+      <label class="field-label">Email</label>
+      <input id="login-email" class="field-input" type="email" placeholder="you@company.com" required autocomplete="email">
+    </div>
+    <div class="field-group">
+      <label class="field-label">Password</label>
+      <div class="pw-wrap">
+        <input id="login-password" class="field-input" type="password" placeholder="Enter password" required autocomplete="current-password">
+        <button type="button" class="pw-toggle" data-target="login-password">👁</button>
+      </div>
+    </div>
+    <div id="login-error" class="auth-error" style="display:none;"></div>
+    <button type="submit" class="btn-auth">Sign In</button>
+  </form>
+
+  <!-- SIGNUP FORM -->
+  <form id="signup-form" class="auth-form" style="display:none;" autocomplete="on">
+    <div class="field-group">
+      <label class="field-label">Full Name</label>
+      <input id="signup-name" class="field-input" type="text" placeholder="Rahul Sharma" required>
+    </div>
+    <div class="field-group">
+      <label class="field-label">Email</label>
+      <input id="signup-email" class="field-input" type="email" placeholder="you@company.com" required autocomplete="email">
+    </div>
+    <div class="field-group">
+      <label class="field-label">Password <span style="color:#94A3B8;font-size:10px;">(min 6 chars)</span></label>
+      <div class="pw-wrap">
+        <input id="signup-password" class="field-input" type="password" placeholder="Create a password" required minlength="6" autocomplete="new-password">
+        <button type="button" class="pw-toggle" data-target="signup-password">👁</button>
+      </div>
+    </div>
+    <div id="signup-error" class="auth-error" style="display:none;"></div>
+    <button type="submit" class="btn-auth">Create Account</button>
+  </form>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     MAIN VIEW  (shown when logged in)
+════════════════════════════════════════════════ -->
+<div id="main-view" style="display:none;">
+  <div class="popup-header">
+    <div class="logo">
+      <div class="logo-icon">RF</div>
+      <span class="logo-text">RecruitFlow</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span class="user-chip" id="user-chip"></span>
+      <button class="refresh-btn" id="refreshBtn" title="Refresh">↻</button>
+    </div>
   </div>
 
   <div class="hero-area">
-    <svg width="280" height="180" viewBox="0 0 280 180" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <!-- Soft glow behind center -->
-      <radialGradient id="centerGlow" cx="50%" cy="50%" r="50%">
-        <stop offset="0%" stop-color="#7C3AED" stop-opacity="0.18"/>
+    <svg width="280" height="160" viewBox="0 0 280 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <radialGradient id="cg" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="#7C3AED" stop-opacity=".16"/>
         <stop offset="100%" stop-color="#7C3AED" stop-opacity="0"/>
       </radialGradient>
-      <ellipse cx="140" cy="90" rx="80" ry="60" fill="url(#centerGlow)"/>
-
-      <!-- Connection lines (curved) -->
-      <path d="M 80 70 Q 110 55 140 90" stroke="#93C5FD" stroke-width="1.5" stroke-dasharray="4 3" fill="none" opacity="0.7"/>
-      <path d="M 200 70 Q 175 55 140 90" stroke="#C4B5FD" stroke-width="1.5" stroke-dasharray="4 3" fill="none" opacity="0.7"/>
-      <path d="M 110 148 Q 125 130 140 90" stroke="#93C5FD" stroke-width="1.5" stroke-dasharray="4 3" fill="none" opacity="0.7"/>
-      <path d="M 170 148 Q 158 130 140 90" stroke="#C4B5FD" stroke-width="1.5" stroke-dasharray="4 3" fill="none" opacity="0.7"/>
-
-      <!-- Envelope icons at line ends -->
-      <rect x="64" y="60" width="18" height="13" rx="2" fill="#DBEAFE" stroke="#2563EB" stroke-width="1.2"/>
-      <path d="M64 62 L73 69 L82 62" stroke="#2563EB" stroke-width="1.2" fill="none"/>
-
-      <rect x="196" y="60" width="18" height="13" rx="2" fill="#EDE9FE" stroke="#7C3AED" stroke-width="1.2"/>
-      <path d="M196 62 L205 69 L214 62" stroke="#7C3AED" stroke-width="1.2" fill="none"/>
-
-      <rect x="100" y="148" width="18" height="13" rx="2" fill="#DBEAFE" stroke="#2563EB" stroke-width="1.2"/>
-      <path d="M100 150 L109 157 L118 150" stroke="#2563EB" stroke-width="1.2" fill="none"/>
-
-      <rect x="162" y="148" width="18" height="13" rx="2" fill="#EDE9FE" stroke="#7C3AED" stroke-width="1.2"/>
-      <path d="M162 150 L171 157 L180 150" stroke="#7C3AED" stroke-width="1.2" fill="none"/>
-
-      <!-- Satellite profile nodes -->
-      <circle cx="80" cy="48" r="18" fill="#DBEAFE" stroke="#2563EB" stroke-width="1.5"/>
-      <circle cx="80" cy="44" r="5" fill="#2563EB"/>
-      <path d="M67 60 Q80 52 93 60" stroke="#2563EB" stroke-width="1.2" fill="none"/>
-
-      <circle cx="200" cy="48" r="18" fill="#EDE9FE" stroke="#7C3AED" stroke-width="1.5"/>
-      <circle cx="200" cy="44" r="5" fill="#7C3AED"/>
-      <path d="M187 60 Q200 52 213 60" stroke="#7C3AED" stroke-width="1.2" fill="none"/>
-
-      <circle cx="109" cy="162" r="15" fill="#DBEAFE" stroke="#2563EB" stroke-width="1.5"/>
-      <circle cx="109" cy="158" r="4" fill="#2563EB"/>
-      <path d="M99 170 Q109 163 119 170" stroke="#2563EB" stroke-width="1.2" fill="none"/>
-
-      <circle cx="171" cy="162" r="15" fill="#EDE9FE" stroke="#7C3AED" stroke-width="1.5"/>
-      <circle cx="171" cy="158" r="4" fill="#7C3AED"/>
-      <path d="M161 170 Q171 163 181 170" stroke="#7C3AED" stroke-width="1.2" fill="none"/>
-
-      <!-- Central profile node (larger) -->
-      <circle cx="140" cy="90" r="28" fill="white" stroke="#2563EB" stroke-width="2"/>
-      <linearGradient id="centerFill" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0%" stop-color="#EFF6FF"/>
-        <stop offset="100%" stop-color="#EDE9FE"/>
-      </linearGradient>
-      <circle cx="140" cy="90" r="26" fill="url(#centerFill)"/>
-      <circle cx="140" cy="84" r="8" fill="#2563EB"/>
-      <path d="M122 104 Q140 94 158 104" stroke="#2563EB" stroke-width="2" fill="none" stroke-linecap="round"/>
-
-      <!-- Sparkle dots -->
-      <g fill="#7C3AED" opacity="0.5">
-        <path d="M 50 105 l2 -4 l2 4 l-4 0 z" transform="rotate(45 50 105)"/>
-        <path d="M 238 115 l2 -4 l2 4 l-4 0 z" transform="rotate(45 238 115)"/>
-        <path d="M 145 28 l2 -3.5 l2 3.5 l-4 0 z" transform="rotate(45 145 28)"/>
-        <path d="M 54 140 l1.5 -3 l1.5 3 l-3 0 z" transform="rotate(45 54 140)"/>
-        <path d="M 230 50 l1.5 -3 l1.5 3 l-3 0 z" transform="rotate(45 230 50)"/>
+      <ellipse cx="140" cy="80" rx="80" ry="55" fill="url(#cg)"/>
+      <path d="M80 62 Q110 48 140 80" stroke="#93C5FD" stroke-width="1.5" stroke-dasharray="4 3" fill="none" opacity=".7"/>
+      <path d="M200 62 Q175 48 140 80" stroke="#C4B5FD" stroke-width="1.5" stroke-dasharray="4 3" fill="none" opacity=".7"/>
+      <path d="M108 138 Q124 120 140 80" stroke="#93C5FD" stroke-width="1.5" stroke-dasharray="4 3" fill="none" opacity=".7"/>
+      <path d="M172 138 Q158 120 140 80" stroke="#C4B5FD" stroke-width="1.5" stroke-dasharray="4 3" fill="none" opacity=".7"/>
+      <rect x="64" y="52" width="18" height="12" rx="2" fill="#DBEAFE" stroke="#2563EB" stroke-width="1.2"/>
+      <path d="M64 54 L73 61 L82 54" stroke="#2563EB" stroke-width="1.2" fill="none"/>
+      <rect x="196" y="52" width="18" height="12" rx="2" fill="#EDE9FE" stroke="#7C3AED" stroke-width="1.2"/>
+      <path d="M196 54 L205 61 L214 54" stroke="#7C3AED" stroke-width="1.2" fill="none"/>
+      <rect x="98" y="136" width="18" height="12" rx="2" fill="#DBEAFE" stroke="#2563EB" stroke-width="1.2"/>
+      <path d="M98 138 L107 145 L116 138" stroke="#2563EB" stroke-width="1.2" fill="none"/>
+      <rect x="162" y="136" width="18" height="12" rx="2" fill="#EDE9FE" stroke="#7C3AED" stroke-width="1.2"/>
+      <path d="M162 138 L171 145 L180 138" stroke="#7C3AED" stroke-width="1.2" fill="none"/>
+      <circle cx="80" cy="42" r="16" fill="#DBEAFE" stroke="#2563EB" stroke-width="1.5"/>
+      <circle cx="80" cy="38" r="5" fill="#2563EB"/>
+      <path d="M68 52 Q80 45 92 52" stroke="#2563EB" stroke-width="1.2" fill="none"/>
+      <circle cx="200" cy="42" r="16" fill="#EDE9FE" stroke="#7C3AED" stroke-width="1.5"/>
+      <circle cx="200" cy="38" r="5" fill="#7C3AED"/>
+      <path d="M188 52 Q200 45 212 52" stroke="#7C3AED" stroke-width="1.2" fill="none"/>
+      <circle cx="107" cy="150" r="13" fill="#DBEAFE" stroke="#2563EB" stroke-width="1.5"/>
+      <circle cx="107" cy="146" r="4" fill="#2563EB"/>
+      <path d="M98 156 Q107 150 116 156" stroke="#2563EB" stroke-width="1.2" fill="none"/>
+      <circle cx="173" cy="150" r="13" fill="#EDE9FE" stroke="#7C3AED" stroke-width="1.5"/>
+      <circle cx="173" cy="146" r="4" fill="#7C3AED"/>
+      <path d="M164 156 Q173 150 182 156" stroke="#7C3AED" stroke-width="1.2" fill="none"/>
+      <linearGradient id="cf" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#EFF6FF"/><stop offset="100%" stop-color="#EDE9FE"/></linearGradient>
+      <circle cx="140" cy="80" r="26" fill="white" stroke="#2563EB" stroke-width="2"/>
+      <circle cx="140" cy="80" r="24" fill="url(#cf)"/>
+      <circle cx="140" cy="74" r="8" fill="#2563EB"/>
+      <path d="M122 93 Q140 84 158 93" stroke="#2563EB" stroke-width="2" fill="none" stroke-linecap="round"/>
+      <g fill="#7C3AED" opacity=".45">
+        <path d="M50 96 l2-4 l2 4 l-4 0z" transform="rotate(45 50 96)"/>
+        <path d="M238 105 l2-4 l2 4 l-4 0z" transform="rotate(45 238 105)"/>
+        <path d="M145 20 l2-3.5 l2 3.5 l-4 0z" transform="rotate(45 145 20)"/>
       </g>
-      <circle cx="44" cy="88" r="2.5" fill="#93C5FD" opacity="0.8"/>
-      <circle cx="240" cy="88" r="2" fill="#C4B5FD" opacity="0.8"/>
-      <circle cx="140" cy="20" r="2" fill="#93C5FD" opacity="0.6"/>
-      <circle cx="50" cy="125" r="1.5" fill="#C4B5FD" opacity="0.7"/>
-      <circle cx="235" cy="132" r="1.5" fill="#93C5FD" opacity="0.7"/>
+      <circle cx="44" cy="78" r="2.5" fill="#93C5FD" opacity=".8"/>
+      <circle cx="240" cy="78" r="2" fill="#C4B5FD" opacity=".8"/>
     </svg>
   </div>
 
-  <div class="tagline">AI-powered LinkedIn outreach for recruiters</div>
+  <div class="tagline" id="welcome-line">Welcome back!</div>
 
   <div class="stats-row">
     <div class="stat-card">
@@ -109,11 +171,12 @@
   <div class="popup-footer">
     <span class="version">v1.0.0</span>
     <span class="divider">·</span>
-    <a class="settings-link" id="settingsLink" href="#">Settings</a>
-    <span class="divider">·</span>
     <span class="pro-badge">Free</span>
+    <span class="divider">·</span>
+    <button class="logout-btn" id="logoutBtn">Sign out</button>
   </div>
+</div>
 
-  <script src="popup.js"></script>
+<script src="popup.js"></script>
 </body>
 </html>

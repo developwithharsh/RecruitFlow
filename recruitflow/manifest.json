@@ -4,15 +4,15 @@
   "version": "1.0.0",
   "description": "Send personalised LinkedIn messages in 1 click. AI-powered templates, outreach tracker, and daily limit guard for recruiters.",
   "icons": {
-    "16": "assets/icon16.png",
-    "48": "assets/icon48.png",
+    "16":  "assets/icon16.png",
+    "48":  "assets/icon48.png",
     "128": "assets/icon128.png"
   },
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
-      "16": "assets/icon16.png",
-      "48": "assets/icon48.png",
+      "16":  "assets/icon16.png",
+      "48":  "assets/icon48.png",
       "128": "assets/icon128.png"
     }
   },
@@ -23,12 +23,12 @@
   "content_scripts": [
     {
       "matches": ["https://www.linkedin.com/in/*"],
-      "js": ["content.js"],
+      "js":  ["content.js", "sidebar.js"],
       "css": ["sidebar.css"],
       "run_at": "document_idle"
     }
   ],
-  "permissions": ["storage", "activeTab", "scripting"],
+  "permissions": ["storage", "activeTab", "scripting", "identity"],
   "host_permissions": [
     "https://www.linkedin.com/*",
     "https://api.groq.com/*",
@@ -36,7 +36,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["sidebar.html", "sidebar.js", "modules/*", "lib/*", "assets/*"],
+      "resources": ["assets/*", "lib/*"],
       "matches": ["https://www.linkedin.com/*"]
     }
   ],
