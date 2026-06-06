@@ -80,6 +80,85 @@
     <span class="rf-logo-text">RecruitFlow</span>
     <div class="rf-header-spacer"></div>
     <span class="rf-profile-mini-name" id="rf-header-name"></span>
+    <button class="rf-close-btn" id="rf-close-btn" title="Close sidebar">✕</button>
+  </div>
+
+  <!-- ── AUTH SCREEN (shown when not logged in) ── -->
+  <div id="rf-auth-screen" class="rf-auth-screen" style="display:none;">
+    <div class="rf-auth-hero">
+      <svg width="80" height="60" viewBox="0 0 80 60" fill="none">
+        <ellipse cx="40" cy="30" rx="36" ry="26" fill="url(#ag2)"/>
+        <radialGradient id="ag2" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#2563EB" stop-opacity=".15"/>
+          <stop offset="100%" stop-color="#2563EB" stop-opacity="0"/>
+        </radialGradient>
+        <circle cx="40" cy="26" r="13" fill="#EFF6FF" stroke="#2563EB" stroke-width="1.5"/>
+        <circle cx="40" cy="22" r="4.5" fill="#2563EB"/>
+        <path d="M30 34 Q40 28 50 34" stroke="#2563EB" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      </svg>
+      <p class="rf-auth-tagline">AI-powered LinkedIn outreach</p>
+    </div>
+    <!-- Tab toggle -->
+    <div class="rf-auth-toggle">
+      <button class="rf-auth-tab active" data-auth-tab="login">Sign In</button>
+      <button class="rf-auth-tab" data-auth-tab="signup">Sign Up</button>
+    </div>
+    <!-- LOGIN -->
+    <div id="rf-login-form" class="rf-auth-form">
+      <div class="rf-field-group">
+        <label class="rf-label">Email</label>
+        <input id="rf-login-email" type="email" class="rf-input" placeholder="you@company.com" autocomplete="email">
+      </div>
+      <div class="rf-field-group">
+        <label class="rf-label">Password</label>
+        <div class="rf-pw-wrap">
+          <input id="rf-login-password" type="password" class="rf-input" placeholder="Your password" autocomplete="current-password">
+          <button type="button" class="rf-pw-toggle" data-target="rf-login-password">👁</button>
+        </div>
+      </div>
+      <div id="rf-login-error" class="rf-auth-error" style="display:none;"></div>
+      <button id="rf-login-btn" class="rf-btn-primary">Sign In</button>
+    </div>
+    <!-- SIGNUP -->
+    <div id="rf-signup-form" class="rf-auth-form" style="display:none;">
+      <div class="rf-field-group">
+        <label class="rf-label">Full Name</label>
+        <input id="rf-signup-name" type="text" class="rf-input" placeholder="Rahul Sharma">
+      </div>
+      <div class="rf-field-group">
+        <label class="rf-label">Email</label>
+        <input id="rf-signup-email" type="email" class="rf-input" placeholder="you@company.com" autocomplete="email">
+      </div>
+      <div class="rf-field-group">
+        <label class="rf-label">Password <span style="font-weight:400;color:#94A3B8;font-size:10px;">(min 6 chars)</span></label>
+        <div class="rf-pw-wrap">
+          <input id="rf-signup-password" type="password" class="rf-input" placeholder="Create a password" autocomplete="new-password">
+          <button type="button" class="rf-pw-toggle" data-target="rf-signup-password">👁</button>
+        </div>
+      </div>
+      <div id="rf-signup-error" class="rf-auth-error" style="display:none;"></div>
+      <button id="rf-signup-btn" class="rf-btn-primary">Create Account & Send OTP</button>
+    </div>
+    <!-- OTP VERIFY -->
+    <div id="rf-otp-form" class="rf-auth-form" style="display:none;">
+      <div class="rf-otp-sent-msg">
+        <span>📧</span>
+        <p>A 6-digit code was sent to<br><strong id="rf-otp-email-display"></strong></p>
+      </div>
+      <div class="rf-field-group">
+        <label class="rf-label">Enter OTP</label>
+        <input id="rf-otp-input" type="text" class="rf-input rf-otp-input" placeholder="000000" maxlength="6" inputmode="numeric" autocomplete="one-time-code">
+      </div>
+      <div id="rf-otp-error" class="rf-auth-error" style="display:none;"></div>
+      <button id="rf-otp-verify-btn" class="rf-btn-primary">Verify & Create Account</button>
+      <button id="rf-otp-resend-btn" class="rf-btn-secondary rf-btn-sm" style="margin-top:6px;">↺ Resend OTP</button>
+      <button id="rf-otp-back-btn" class="rf-btn-secondary rf-btn-sm" style="margin-top:4px;">← Back</button>
+    </div>
+    <!-- Logged-in user display (shown when user is signed in, with sign-out option) -->
+    <div id="rf-auth-user-bar" style="display:none;padding:8px 14px;background:#F8FAFC;border-bottom:1px solid #E2E8F0;display:flex;align-items:center;justify-content:space-between;">
+      <span id="rf-auth-user-name" style="font-size:12px;font-weight:600;color:#0F172A;"></span>
+      <button id="rf-signout-btn" style="font-size:11px;color:#64748B;background:none;border:none;cursor:pointer;">Sign out</button>
+    </div>
   </div>
 
   <!-- Tabs -->
@@ -189,12 +268,16 @@
       </div>
       <!-- AI sub-panel -->
       <div class="rf-sub-panel" id="rf-sub-ai">
+        <div class="rf-section">
+          <label class="rf-label">Your rough draft <span style="font-weight:400;font-size:10px;color:#94A3B8;">(optional)</span></label>
+          <textarea id="rf-rough-draft" class="rf-textarea" rows="4" placeholder="Type your rough message here and AI will refine + personalise it to the candidate. Leave blank to generate from scratch."></textarea>
+        </div>
         <button id="rf-ai-generate-btn" class="rf-btn-ai" style="margin-bottom:10px;">
-          ✦ Generate with AI <span class="rf-ai-uses-badge"></span>
+          ✦ Refine &amp; Generate with AI <span class="rf-ai-uses-badge"></span>
         </button>
         <div id="rf-ai-message-wrap" style="display:none;">
-          <label class="rf-label">Generated Message</label>
-          <textarea id="rf-ai-message-text" class="rf-textarea" rows="8"></textarea>
+          <label class="rf-label">AI-refined message</label>
+          <textarea id="rf-ai-message-text" class="rf-textarea" rows="7"></textarea>
         </div>
       </div>
     </div>

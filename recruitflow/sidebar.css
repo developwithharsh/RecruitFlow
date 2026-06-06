@@ -1040,3 +1040,137 @@
   margin: 0 !important;
   padding: 0 !important;
 }
+
+/* ── Close button ────────────────────────────────────────────────────────── */
+.rf-close-btn {
+  background: transparent !important;
+  border: none !important;
+  color: #94A3B8 !important;
+  font-size: 16px !important;
+  cursor: pointer !important;
+  padding: 2px 4px !important;
+  border-radius: 4px !important;
+  line-height: 1 !important;
+  transition: color 0.2s, background 0.2s !important;
+  margin-left: 4px !important;
+  flex-shrink: 0 !important;
+}
+.rf-close-btn:hover {
+  color: #DC2626 !important;
+  background: #FEF2F2 !important;
+}
+
+/* ── Auth screen ─────────────────────────────────────────────────────────── */
+.rf-auth-screen {
+  flex-direction: column !important;
+  overflow-y: auto !important;
+  flex: 1 !important;
+  padding: 0 !important;
+}
+
+.rf-auth-hero {
+  text-align: center !important;
+  padding: 18px 16px 8px !important;
+  background: linear-gradient(135deg, #EFF6FF 0%, #F5F3FF 100%) !important;
+  border-bottom: 1px solid #E2E8F0 !important;
+}
+
+.rf-auth-tagline {
+  font-size: 12px !important;
+  color: #64748B !important;
+  margin: 6px 0 0 !important;
+  padding: 0 !important;
+}
+
+.rf-auth-toggle {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 3px !important;
+  background: #F8FAFC !important;
+  border-radius: 0 !important;
+  padding: 8px 12px !important;
+  border-bottom: 1px solid #E2E8F0 !important;
+}
+
+.rf-auth-tab {
+  background: transparent !important;
+  border: none !important;
+  padding: 8px !important;
+  border-radius: 7px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  color: #64748B !important;
+  cursor: pointer !important;
+  font-family: var(--rf-font) !important;
+  transition: all 0.2s !important;
+}
+
+.rf-auth-tab.active {
+  background: white !important;
+  color: #2563EB !important;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08) !important;
+}
+
+.rf-auth-form {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+  padding: 14px 14px 20px !important;
+}
+
+.rf-pw-wrap {
+  position: relative !important;
+}
+
+.rf-pw-wrap .rf-input {
+  width: 100% !important;
+  padding-right: 36px !important;
+}
+
+.rf-pw-toggle {
+  position: absolute !important;
+  right: 9px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  background: none !important;
+  border: none !important;
+  cursor: pointer !important;
+  font-size: 13px !important;
+  padding: 0 !important;
+  opacity: 0.6 !important;
+}
+
+.rf-pw-toggle:hover { opacity: 1 !important; }
+
+.rf-auth-error {
+  font-size: 11px !important;
+  color: #DC2626 !important;
+  background: #FEF2F2 !important;
+  border: 1px solid #FECACA !important;
+  border-radius: 7px !important;
+  padding: 7px 9px !important;
+  margin: 0 !important;
+}
+
+.rf-otp-sent-msg {
+  text-align: center !important;
+  padding: 10px 0 4px !important;
+  font-size: 12px !important;
+  color: #64748B !important;
+}
+
+.rf-otp-sent-msg span {
+  font-size: 24px !important;
+  display: block !important;
+  margin-bottom: 6px !important;
+}
+
+.rf-otp-sent-msg p { margin: 0 !important; padding: 0 !important; line-height: 1.5 !important; }
+.rf-otp-sent-msg strong { color: #0F172A !important; }
+
+.rf-otp-input {
+  text-align: center !important;
+  font-size: 22px !important;
+  letter-spacing: 8px !important;
+  font-weight: 700 !important;
+}

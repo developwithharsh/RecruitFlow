@@ -14,6 +14,45 @@
     return new Promise(resolve => chrome.storage.local.set(obj, resolve));
   }
 
+  // ── Crypto helpers ────────────────────────────────────────────────────────
+  async function hashPassword(password) {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(password));
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+  }
+
+  // ── EmailJS OTP sender (uses REST API — no SDK needed) ────────────────────
+  // Setup: create free account at emailjs.com → Email Services → connect Gmail
+  // Create a template with variables: {{to_email}}, {{otp_code}}, {{user_name}}
+  // Fill in your credentials below:
+  const EMAILJS_SERVICE_ID  = 'service_recruitflow';  // replace with your Service ID
+  const EMAILJS_TEMPLATE_ID = 'template_otp';          // replace with your Template ID
+  const EMAILJS_PUBLIC_KEY  = 'YOUR_PUBLIC_KEY';        // replace with your Public Key
+
+  async function sendOTPEmail(toEmail, otpCode, userName) {
+    try {
+      const res = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          service_id:    EMAILJS_SERVICE_ID,
+          template_id:   EMAILJS_TEMPLATE_ID,
+          user_id:       EMAILJS_PUBLIC_KEY,
+          template_params: { to_email: toEmail, otp_code: otpCode, user_name: userName }
+        })
+      });
+      return res.ok;
+    } catch (_) { return false; }
+  }
+
+  function generateOTP() {
+    return String(Math.floor(100000 + Math.random() * 900000));
+  }
+
+  // ── Auth helpers ──────────────────────────────────────────────────────────
+  async function getAuth()       { return (await storageGet('recruitflow_auth')) || { accounts: [], isLoggedIn: false }; }
+  async function setAuth(data)   { await storageSet({ recruitflow_auth: data }); }
+  function getCurrentUser(auth)  { return auth?.isLoggedIn ? auth.currentUser : null; }
+
   // ── Profile reading (direct DOM — sidebar.js is a content script) ─────────
   function _getFirst(selectors) {
     for (const s of selectors) {
@@ -575,8 +614,9 @@
       btn.disabled = true;
       btn.innerHTML = '<span class="rf-spinner"></span> Generating…';
       try {
+        const roughDraft = document.getElementById('rf-rough-draft')?.value?.trim() || '';
         const result = await chrome.runtime.sendMessage({
-          type: 'GENERATE_MESSAGE', profileData: currentProfile, jdText: jd.text, tone: currentTone
+          type: 'GENERATE_MESSAGE', profileData: currentProfile, jdText: jd.text, tone: currentTone, roughDraft
         });
         if (result.limitReached) { showUpgradeOverlay(); return; }
         if (!result.success) { showToast(result.error || 'AI unavailable', 'error'); return; }
@@ -589,7 +629,7 @@
       } catch (_) { showToast('AI unavailable. Try again.', 'error'); }
       finally {
         btn.disabled = false;
-        btn.innerHTML = '✦ Generate with AI <span class="rf-ai-uses-badge"></span>';
+        btn.innerHTML = '✦ Refine &amp; Generate with AI <span class="rf-ai-uses-badge"></span>';
         await refreshAIBadge();
       }
     });
@@ -900,6 +940,11 @@
 
   // ── Main sidebar initialisation ──────────────────────────────────────────
   async function initMain() {
+    // Wire close button
+    document.getElementById('rf-close-btn')?.addEventListener('click', () => {
+      document.getElementById('recruitflow-sidebar-container')?.classList.add('collapsed');
+    });
+
     document.querySelectorAll('.rf-tab-btn').forEach(btn =>
       btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
 
@@ -932,8 +977,185 @@
     setInterval(() => checkAndResetDay(), 5 * 60 * 1000);
   }
 
-  // ── Entry point: check onboarding then branch ────────────────────────────
+  // ── Auth screen wiring ────────────────────────────────────────────────────
+  function wireAuthScreen() {
+    // Tab switching (Sign In / Sign Up)
+    document.querySelectorAll('.rf-auth-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.rf-auth-tab').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const tab = btn.dataset.authTab;
+        document.getElementById('rf-login-form').style.display  = tab === 'login'  ? 'flex' : 'none';
+        document.getElementById('rf-signup-form').style.display = tab === 'signup' ? 'flex' : 'none';
+        document.getElementById('rf-otp-form').style.display    = 'none';
+        document.getElementById('rf-login-error').style.display  = 'none';
+        document.getElementById('rf-signup-error').style.display = 'none';
+      });
+    });
+
+    // Password toggles
+    document.querySelectorAll('.rf-pw-toggle').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const input = document.getElementById(btn.dataset.target);
+        if (!input) return;
+        input.type = input.type === 'password' ? 'text' : 'password';
+        btn.textContent = input.type === 'password' ? '👁' : '🙈';
+      });
+    });
+
+    // Login
+    document.getElementById('rf-login-btn')?.addEventListener('click', async () => {
+      const email    = document.getElementById('rf-login-email')?.value.trim().toLowerCase();
+      const password = document.getElementById('rf-login-password')?.value;
+      const errEl    = document.getElementById('rf-login-error');
+      errEl.style.display = 'none';
+
+      if (!email || !password) { errEl.textContent = 'Please fill in all fields.'; errEl.style.display = 'block'; return; }
+
+      const btn = document.getElementById('rf-login-btn');
+      btn.disabled = true; btn.textContent = 'Signing in…';
+
+      try {
+        const auth = await getAuth();
+        const hash = await hashPassword(password);
+        const account = (auth.accounts || []).find(a => a.email === email && a.passwordHash === hash);
+        if (!account) { errEl.textContent = 'Incorrect email or password.'; errEl.style.display = 'block'; return; }
+        await setAuth({ ...auth, currentUser: { email: account.email, name: account.name }, isLoggedIn: true });
+        await onAuthSuccess(account.name);
+      } catch (e) { errEl.textContent = 'Something went wrong. Try again.'; errEl.style.display = 'block'; }
+      finally { btn.disabled = false; btn.textContent = 'Sign In'; }
+    });
+
+    // Signup
+    let pendingOTP = null;
+    let pendingSignupData = null;
+
+    document.getElementById('rf-signup-btn')?.addEventListener('click', async () => {
+      const name     = document.getElementById('rf-signup-name')?.value.trim();
+      const email    = document.getElementById('rf-signup-email')?.value.trim().toLowerCase();
+      const password = document.getElementById('rf-signup-password')?.value;
+      const errEl    = document.getElementById('rf-signup-error');
+      errEl.style.display = 'none';
+
+      if (!name || !email || !password) { errEl.textContent = 'Please fill in all fields.'; errEl.style.display = 'block'; return; }
+      if (password.length < 6)          { errEl.textContent = 'Password must be at least 6 characters.'; errEl.style.display = 'block'; return; }
+
+      const auth = await getAuth();
+      if ((auth.accounts || []).find(a => a.email === email)) {
+        errEl.textContent = 'An account with this email already exists.'; errEl.style.display = 'block'; return;
+      }
+
+      const btn = document.getElementById('rf-signup-btn');
+      btn.disabled = true; btn.textContent = 'Sending OTP…';
+
+      try {
+        const otp  = generateOTP();
+        const sent = await sendOTPEmail(email, otp, name);
+        pendingOTP        = otp;
+        pendingSignupData = { name, email, password };
+
+        // Show OTP form regardless of email success (show code in console if email not configured)
+        if (!sent) console.info('[RecruitFlow] EmailJS not configured — OTP for testing:', otp);
+        document.getElementById('rf-otp-email-display').textContent = email;
+        document.getElementById('rf-signup-form').style.display = 'none';
+        document.getElementById('rf-otp-form').style.display    = 'flex';
+        if (!sent) showToast('OTP shown in browser console (EmailJS not configured)', 'warning');
+      } catch (e) { errEl.textContent = 'Failed to send OTP. Try again.'; errEl.style.display = 'block'; }
+      finally { btn.disabled = false; btn.textContent = 'Create Account & Send OTP'; }
+    });
+
+    // OTP Verify
+    document.getElementById('rf-otp-verify-btn')?.addEventListener('click', async () => {
+      const entered = document.getElementById('rf-otp-input')?.value.trim();
+      const errEl   = document.getElementById('rf-otp-error');
+      errEl.style.display = 'none';
+
+      if (!entered) { errEl.textContent = 'Enter the OTP code.'; errEl.style.display = 'block'; return; }
+      if (entered !== pendingOTP) { errEl.textContent = 'Incorrect OTP. Please try again.'; errEl.style.display = 'block'; return; }
+
+      const btn = document.getElementById('rf-otp-verify-btn');
+      btn.disabled = true; btn.textContent = 'Creating account…';
+
+      try {
+        const auth = await getAuth();
+        const hash = await hashPassword(pendingSignupData.password);
+        const accounts = auth.accounts || [];
+        accounts.push({ email: pendingSignupData.email, name: pendingSignupData.name, passwordHash: hash, createdAt: new Date().toISOString() });
+        await setAuth({ accounts, currentUser: { email: pendingSignupData.email, name: pendingSignupData.name }, isLoggedIn: true });
+        pendingOTP = null; pendingSignupData = null;
+        await onAuthSuccess(accounts[accounts.length - 1].name);
+      } catch (e) { errEl.textContent = 'Something went wrong. Try again.'; errEl.style.display = 'block'; }
+      finally { btn.disabled = false; btn.textContent = 'Verify & Create Account'; }
+    });
+
+    // OTP Resend
+    document.getElementById('rf-otp-resend-btn')?.addEventListener('click', async () => {
+      if (!pendingSignupData) return;
+      const otp  = generateOTP();
+      pendingOTP = otp;
+      const sent = await sendOTPEmail(pendingSignupData.email, otp, pendingSignupData.name);
+      if (!sent) console.info('[RecruitFlow] Resent OTP:', otp);
+      showToast(sent ? 'OTP resent!' : 'OTP resent (check console)', sent ? 'success' : 'warning');
+    });
+
+    // OTP Back
+    document.getElementById('rf-otp-back-btn')?.addEventListener('click', () => {
+      document.getElementById('rf-otp-form').style.display    = 'none';
+      document.getElementById('rf-signup-form').style.display = 'flex';
+      pendingOTP = null; pendingSignupData = null;
+    });
+
+    // Sign out
+    document.getElementById('rf-signout-btn')?.addEventListener('click', async () => {
+      const auth = await getAuth();
+      await setAuth({ ...auth, isLoggedIn: false, currentUser: null });
+      location.reload();
+    });
+  }
+
+  async function showAuthScreen() {
+    const tabsEl  = document.querySelector('#recruitflow-sidebar-container .rf-tabs');
+    const panels  = document.querySelectorAll('#recruitflow-sidebar-container .rf-panel');
+    const authEl  = document.getElementById('rf-auth-screen');
+    if (tabsEl) tabsEl.style.display = 'none';
+    panels.forEach(p => { p.style.display = 'none'; });
+    if (authEl) authEl.style.display = 'flex';
+    wireAuthScreen();
+  }
+
+  async function onAuthSuccess(userName) {
+    // Hide auth screen
+    const authEl = document.getElementById('rf-auth-screen');
+    if (authEl) authEl.style.display = 'none';
+
+    // Show user bar in header
+    const nameEl = document.getElementById('rf-header-name');
+    if (nameEl) nameEl.textContent = (userName || '').split(' ')[0];
+
+    // Show onboarding or main
+    const settings = (await storageGet('recruitflow_settings')) || {};
+    if (!settings.onboarding_complete) {
+      await showOnboarding();
+    } else {
+      // Show tabs again
+      const tabsEl = document.querySelector('#recruitflow-sidebar-container .rf-tabs');
+      if (tabsEl) tabsEl.style.display = '';
+      await initMain();
+    }
+  }
+
+  // ── Entry point: check auth → check onboarding → main ───────────────────
   async function init() {
+    const auth = await getAuth();
+    const user = getCurrentUser(auth);
+    if (!user) {
+      await showAuthScreen();
+      return;
+    }
+    // Update header name
+    const nameEl = document.getElementById('rf-header-name');
+    if (nameEl) nameEl.textContent = (user.name || '').split(' ')[0];
+
     const settings = (await storageGet('recruitflow_settings')) || {};
     if (!settings.onboarding_complete) {
       await showOnboarding();

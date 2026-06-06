@@ -24,6 +24,32 @@ const DEFAULT_TEMPLATES = [
   }
 ];
 
+// ── Extension icon click → toggle sidebar ─────────────────────────────────
+chrome.action.onClicked.addListener(async (tab) => {
+  if (!tab.url) return;
+  if (tab.url.includes('linkedin.com')) {
+    // On LinkedIn — toggle (show/hide) the sidebar
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: () => {
+          const container = document.getElementById('recruitflow-sidebar-container');
+          if (container) {
+            container.classList.toggle('collapsed');
+          } else {
+            window.dispatchEvent(new CustomEvent('rf-force-inject'));
+          }
+        }
+      });
+    } catch (e) {
+      console.warn('RecruitFlow: could not toggle sidebar', e);
+    }
+  } else {
+    // Not on LinkedIn — navigate there
+    await chrome.tabs.update(tab.id, { url: 'https://www.linkedin.com/feed/' });
+  }
+});
+
 chrome.runtime.onInstalled.addListener(async (details) => {
   if (details.reason === 'install') {
     try {
@@ -167,20 +193,10 @@ async function handleMessage(message, sender) {
       }
 
       const systemPrompt = "You are an expert recruiter writing LinkedIn outreach messages. Write short, human, personalised messages. Never sound robotic or generic. Never mention you are AI.";
-      const userPrompt = `Candidate name: ${profileData.name || 'the candidate'}
-Current role: ${profileData.role || 'their current role'}
-Current company: ${profileData.company || 'their company'}
-Location: ${profileData.location || ''}
-Job Description: ${jdText || 'an exciting opportunity'}
-Tone: ${tone || 'Professional'} (Professional / Friendly / Brief)
-
-Write a LinkedIn outreach message (max 180 words) that:
-1. Opens with their name
-2. References their current role or company specifically
-3. Briefly explains the opportunity without dumping the full JD
-4. Ends with a simple question or call to action
-5. Sounds like it was written by a human recruiter
-Return only the message text. No subject line. No extra explanation.`;
+      const hasDraft = (message.roughDraft || '').trim().length > 0;
+      const userPrompt = hasDraft
+        ? `Recruiter's rough draft message:\n"${message.roughDraft}"\n\nCandidate: ${profileData.name || 'the candidate'}, currently ${profileData.role || 'in their role'} at ${profileData.company || 'their company'}, located in ${profileData.location || 'their city'}.\nJob opening: ${jdText ? jdText.substring(0, 400) : 'an exciting opportunity'}\nRequested tone: ${tone || 'Professional'}\n\nImprove and personalise the rough draft by:\n1. Fixing grammar, flow, and professionalism\n2. Personalising it to this specific candidate (mention their role/company naturally)\n3. Keeping the recruiter's core message and intent intact\n4. Making it sound human and warm, NOT AI-generated\n5. Keeping it under 180 words\nReturn only the improved message. No explanation.`
+        : `Candidate name: ${profileData.name || 'the candidate'}\nCurrent role: ${profileData.role || 'their current role'}\nCurrent company: ${profileData.company || 'their company'}\nLocation: ${profileData.location || ''}\nJob Description: ${jdText || 'an exciting opportunity'}\nTone: ${tone || 'Professional'} (Professional / Friendly / Brief)\n\nWrite a LinkedIn outreach message (max 180 words) that:\n1. Opens with their name\n2. References their current role or company specifically\n3. Briefly explains the opportunity without dumping the full JD\n4. Ends with a simple question or call to action\n5. Sounds like it was written by a human recruiter\nReturn only the message text. No subject line. No extra explanation.`;
 
       let generatedText = null;
       try {
