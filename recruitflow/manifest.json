@@ -36,7 +36,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["sidebar.html", "lib/*", "assets/*"],
+      "resources": ["sidebar.html", "sidebar.js", "modules/*", "lib/*", "assets/*"],
       "matches": ["https://www.linkedin.com/*"]
     }
   ],

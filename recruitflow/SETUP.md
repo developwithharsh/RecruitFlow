@@ -1,5 +1,33 @@
 # RecruitFlow — Setup Guide
 
+## Step 0 — Add your API Keys (Required for AI features)
+
+Before loading the extension, open `recruitflow/background.js` in any text editor and replace the two placeholder values:
+
+**Groq API Key** (primary AI — fast, free):
+1. Go to [console.groq.com](https://console.groq.com) and sign up for a free account
+2. Navigate to **API Keys** → **Create API Key** → name it "RecruitFlow"
+3. Copy the key (starts with `gsk_...`)
+4. In `background.js`, find this line:
+   ```
+   const GROQ_API_KEY = "YOUR_GROQ_API_KEY_HERE";
+   ```
+5. Replace `YOUR_GROQ_API_KEY_HERE` with your actual key (keep the quotes)
+
+**Gemini API Key** (fallback AI — used if Groq fails):
+1. Go to [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey) and sign in with Google
+2. Click **Create API key**
+3. Copy the key (starts with `AIza...`)
+4. In `background.js`, find this line:
+   ```
+   const GEMINI_API_KEY = "YOUR_GEMINI_API_KEY_HERE";
+   ```
+5. Replace `YOUR_GEMINI_API_KEY_HERE` with your actual key (keep the quotes)
+
+Save `background.js` before proceeding. Both keys are free with generous limits.
+
+---
+
 ## 1. Load the Extension in Chrome (Developer Mode)
 
 1. Open Chrome and navigate to `chrome://extensions/`

@@ -1154,6 +1154,29 @@
     refreshLimitBar();
   }
 
+  // ─── Runtime message handler (for sidebar.js requests) ───────────────────────
+
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.type === 'REREAD_PROFILE') {
+      try {
+        const profile = readLinkedInProfile();
+        sendResponse({ profile });
+        // Also dispatch custom event so sidebar.js updateProfileBanner runs
+        window.dispatchEvent(new CustomEvent('rf-profile-updated', { detail: profile }));
+      } catch (e) {
+        sendResponse({ profile: null, error: e.message });
+      }
+      return true;
+    }
+
+    if (message.type === 'SEND_LINKEDIN_MESSAGE') {
+      sendLinkedInMessage(message.message)
+        .then(() => sendResponse({ success: true }))
+        .catch(err => sendResponse({ success: false, error: err.message }));
+      return true;
+    }
+  });
+
   // ─── SPA URL change observer ──────────────────────────────────────────────
 
   let lastUrl = location.href;
