@@ -14,6 +14,69 @@
     return new Promise(resolve => chrome.storage.local.set(obj, resolve));
   }
 
+  // ── Profile reading (direct DOM — sidebar.js is a content script) ─────────
+  function _getFirst(selectors) {
+    for (const s of selectors) {
+      try { const el = document.querySelector(s); if (el?.innerText?.trim()) return el.innerText.trim(); } catch (_) {}
+    }
+    return '';
+  }
+
+  function _getCompany() {
+    try {
+      const exp = document.querySelector('#experience');
+      if (!exp) return '';
+      const sec = exp.closest('section') || exp.parentElement;
+      const el  = sec?.querySelector('.t-14.t-normal.t-black--light')
+               || sec?.querySelector('.hoverable-link-text.t-bold')
+               || sec?.querySelector('.t-bold.inline');
+      return el ? el.innerText.trim() : '';
+    } catch (_) { return ''; }
+  }
+
+  function readProfileFromDOM() {
+    return {
+      name:       _getFirst(['h1.text-heading-xlarge','h1.inline.t-24','.pv-text-details__left-panel h1','h1']),
+      role:       _getFirst(['.text-body-medium.break-words','.pv-text-details__left-panel .text-body-medium','[data-field="headline"]']),
+      company:    _getCompany(),
+      location:   _getFirst(['.text-body-small.inline.t-black--light','.pv-text-details__left-panel .text-body-small']),
+      profileUrl: window.location.href
+    };
+  }
+
+  // ── LinkedIn message send (direct DOM — no background hop needed) ──────────
+  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  async function sendLinkedInMessage(text) {
+    const msgBtn =
+      document.querySelector('button[aria-label*="Message"]') ||
+      document.querySelector('.pvs-profile-actions__action') ||
+      Array.from(document.querySelectorAll('button')).find(b => b.innerText?.trim() === 'Message');
+
+    if (!msgBtn) throw new Error('Message button not found on this profile.');
+    msgBtn.click();
+    await sleep(1400);
+
+    const composer =
+      document.querySelector('.msg-form__contenteditable') ||
+      document.querySelector('[contenteditable="true"][aria-label]') ||
+      document.querySelector('[contenteditable="true"]');
+
+    if (!composer) throw new Error('Composer did not open. Try clicking Message manually.');
+    composer.focus();
+    document.execCommand('insertText', false, text);
+    await sleep(400);
+
+    const sendBtn =
+      document.querySelector('.msg-form__send-button') ||
+      Array.from(document.querySelectorAll('button')).find(b =>
+        b.getAttribute('aria-label')?.toLowerCase().includes('send') ||
+        b.classList.contains('msg-form__send-button'));
+
+    if (sendBtn) sendBtn.click();
+    return true;
+  }
+
   // ── Template engine (inline) ─────────────────────────────────────────────
   const DEFAULT_TEMPLATES = [
     { id: 'default_1', name: 'Initial Outreach', body: 'Hi {name},\n\nI came across your profile and was impressed by your experience as {role} at {company}.\n\nI\'m currently hiring for a {jd_title} role that I think could be a great fit.\n\nWould you be open to a quick 10-minute call this week?\n\nBest regards,\n{recruiter_name}\n{recruiter_company}' },
@@ -453,10 +516,16 @@
     document.getElementById('rf-pdf-input')?.addEventListener('change', async e => {
       const file = e.target.files[0];
       if (!file) return;
+      if (!await canUseAI()) { showUpgradeOverlay(); e.target.value = ''; return; }
       const statusEl = document.getElementById('rf-pdf-status');
       if (statusEl) statusEl.textContent = 'Extracting…';
       try {
         const text = await extractPDF(file);
+        // Count PDF upload against free AI uses
+        const usage = await getUsage();
+        usage.ai_uses_total = (usage.ai_uses_total || 0) + 1;
+        await storageSet({ recruitflow_usage: usage });
+        await refreshAIBadge();
         document.getElementById('rf-jd-text').value = text;
         if (!document.getElementById('rf-jd-title').value)
           document.getElementById('rf-jd-title').value = file.name.replace('.pdf', '').replace(/_/g, ' ');
@@ -488,13 +557,12 @@
     // Template select
     document.getElementById('rf-template-select')?.addEventListener('change', fillAndPreview);
 
-    // Re-read profile
-    document.getElementById('rf-reread-btn')?.addEventListener('click', async () => {
-      try {
-        const result = await chrome.runtime.sendMessage({ type: 'REREAD_PROFILE' });
-        if (result?.profile) { updateProfileBanner(result.profile); showToast('Profile refreshed', 'success'); }
-        else showToast('Could not re-read profile', 'warning');
-      } catch (_) { showToast('Re-read failed', 'error'); }
+    // Re-read profile — read DOM directly (no background hop)
+    document.getElementById('rf-reread-btn')?.addEventListener('click', () => {
+      const profile = readProfileFromDOM();
+      updateProfileBanner(profile);
+      fillAndPreview();
+      showToast('Profile refreshed', 'success');
     });
 
     // AI Generate
@@ -526,7 +594,7 @@
       }
     });
 
-    // Send message
+    // Send message — uses direct DOM manipulation (no background hop)
     document.getElementById('rf-send-btn')?.addEventListener('click', async () => {
       const activeSubTab = document.querySelector('.rf-sub-tab-btn.active')?.dataset.sub || 'template';
       const msgText = activeSubTab === 'ai'
@@ -535,29 +603,32 @@
 
       if (!msgText) { showToast('Write or generate a message first', 'warning'); return; }
 
+      // Enforce daily limit before sending
+      const limitStatus = await getLimitStatus();
+      if (limitStatus.level === 'danger') {
+        showToast(`Daily limit of ${limitStatus.limit} messages reached. Resume tomorrow to protect your account.`, 'warning');
+        return;
+      }
+
       const btn = document.getElementById('rf-send-btn');
       btn.disabled = true;
       btn.innerHTML = '<span class="rf-spinner"></span> Sending…';
 
       try {
-        const result = await chrome.runtime.sendMessage({ type: 'SEND_LINKEDIN_MESSAGE', message: msgText });
-        if (result?.success) {
-          const jd = await getActiveJD();
-          await addEntry({
-            candidateName: currentProfile?.name || '', candidateUrl: currentProfile?.profileUrl || window.location.href,
-            candidateRole: currentProfile?.role || '', candidateCompany: currentProfile?.company || '',
-            jdTitle: jd?.title || '', messageSent: msgText, sentAt: new Date().toISOString()
-          });
-          await incrementDailyCount();
-          await refreshLimitBar();
-          showToast(`Sent to ${currentProfile?.name || 'candidate'}!`, 'success');
-          document.getElementById('rf-message-preview').value  = '';
-          document.getElementById('rf-ai-message-text').value  = '';
-          document.getElementById('rf-ai-message-wrap').style.display = 'none';
-        } else {
-          showToast(result?.error || 'Could not send. Try manually.', 'error');
-        }
-      } catch (_) { showToast('Send failed. Try manually.', 'error'); }
+        await sendLinkedInMessage(msgText);
+        const jd = await getActiveJD();
+        await addEntry({
+          candidateName: currentProfile?.name || '', candidateUrl: currentProfile?.profileUrl || window.location.href,
+          candidateRole: currentProfile?.role || '', candidateCompany: currentProfile?.company || '',
+          jdTitle: jd?.title || '', messageSent: msgText, sentAt: new Date().toISOString()
+        });
+        await incrementDailyCount();
+        await refreshLimitBar();
+        showToast(`Sent to ${currentProfile?.name || 'candidate'}!`, 'success');
+        document.getElementById('rf-message-preview').value  = '';
+        document.getElementById('rf-ai-message-text').value  = '';
+        document.getElementById('rf-ai-message-wrap').style.display = 'none';
+      } catch (e) { showToast(e.message || 'Could not send. Try manually.', 'error'); }
       finally {
         btn.disabled = false;
         btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -623,6 +694,12 @@
       const body = document.getElementById('rf-new-tpl-body')?.value.trim();
       if (!name || !body) { showToast('Fill in both fields', 'warning'); return; }
       const tmpls = await storageGet('recruitflow_templates') || [];
+      const usage = await getUsage();
+      const customCount = tmpls.filter(t => !t.id.startsWith('default_')).length;
+      if (!usage.is_pro && customCount >= 3) {
+        showToast('Free plan: max 3 custom templates. Upgrade to Pro for unlimited.', 'warning');
+        return;
+      }
       tmpls.push({ id: 'tpl_' + Date.now(), name, body, createdAt: new Date().toISOString() });
       await storageSet({ recruitflow_templates: tmpls });
       document.getElementById('rf-add-tpl-modal').classList.remove('visible');
@@ -683,6 +760,11 @@
       refreshAIBadge(),
       refreshLimitBar()
     ]);
+
+    // Read profile from DOM on startup so currentProfile is populated immediately
+    currentProfile = readProfileFromDOM();
+    updateProfileBanner(currentProfile);
+    await fillAndPreview();
 
     switchTab('jd');
 

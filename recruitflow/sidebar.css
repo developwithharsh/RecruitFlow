@@ -57,7 +57,12 @@
   line-height: normal !important;
   letter-spacing: normal !important;
   word-spacing: normal !important;
-  text-transform: none !important;
+}
+
+/* Explicit uppercase overrides — scoped to beat the * reset specificity */
+#recruitflow-sidebar-container .rf-label,
+#recruitflow-sidebar-container .rf-settings-group-title {
+  text-transform: uppercase !important;
 }
 
 /* ── Toggle tab ──────────────────────────────────────────────────────────── */
