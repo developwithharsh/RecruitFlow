@@ -86,33 +86,73 @@
   // ── LinkedIn message send (direct DOM — no background hop needed) ──────────
   function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+  function isOnLinkedInProfile() {
+    return /linkedin\.com\/in\//.test(window.location.href);
+  }
+
+  async function waitForComposer(ms = 3000) {
+    const start = Date.now();
+    while (Date.now() - start < ms) {
+      const el =
+        document.querySelector('.msg-form__contenteditable[contenteditable="true"]') ||
+        document.querySelector('.msg-form__contenteditable') ||
+        document.querySelector('[data-artdeco-is-focused] [contenteditable="true"]') ||
+        document.querySelector('.msg-overlay-conversation-bubble [contenteditable="true"]') ||
+        document.querySelector('[contenteditable="true"][aria-label]');
+      if (el) return el;
+      await sleep(200);
+    }
+    return null;
+  }
+
   async function sendLinkedInMessage(text) {
+    // Must be on a profile page to find the Message button
+    if (!isOnLinkedInProfile()) {
+      throw new Error('Open the candidate\'s LinkedIn profile (/in/username) first, then click Send Message.');
+    }
+
+    // Find the Message button — try multiple selectors
     const msgBtn =
-      document.querySelector('button[aria-label*="Message"]') ||
-      document.querySelector('.pvs-profile-actions__action') ||
-      Array.from(document.querySelectorAll('button')).find(b => b.innerText?.trim() === 'Message');
-
-    if (!msgBtn) throw new Error('Message button not found on this profile.');
-    msgBtn.click();
-    await sleep(1400);
-
-    const composer =
-      document.querySelector('.msg-form__contenteditable') ||
-      document.querySelector('[contenteditable="true"][aria-label]') ||
-      document.querySelector('[contenteditable="true"]');
-
-    if (!composer) throw new Error('Composer did not open. Try clicking Message manually.');
-    composer.focus();
-    document.execCommand('insertText', false, text);
-    await sleep(400);
-
-    const sendBtn =
-      document.querySelector('.msg-form__send-button') ||
+      document.querySelector('button[aria-label^="Message"]') ||
+      document.querySelector('button[aria-label*="Message "]') ||
+      document.querySelector('.pvs-profile-actions button[aria-label*="Message"]') ||
       Array.from(document.querySelectorAll('button')).find(b =>
-        b.getAttribute('aria-label')?.toLowerCase().includes('send') ||
-        b.classList.contains('msg-form__send-button'));
+        b.innerText?.trim() === 'Message' || b.getAttribute('aria-label') === 'Message'
+      );
 
-    if (sendBtn) sendBtn.click();
+    if (!msgBtn) {
+      throw new Error('Message button not found. Scroll up to the top of the profile and try again.');
+    }
+
+    msgBtn.click();
+    await sleep(600);
+
+    // Wait up to 3s for composer to appear
+    const composer = await waitForComposer(3000);
+    if (!composer) {
+      throw new Error('Message composer did not open. Click the Message button on the profile manually, then click Send again.');
+    }
+
+    composer.focus();
+    await sleep(150);
+    document.execCommand('insertText', false, text);
+    await sleep(500);
+
+    // Find and click the send button
+    const sendBtn =
+      document.querySelector('.msg-form__send-button:not([disabled])') ||
+      document.querySelector('button.msg-form__send-button') ||
+      Array.from(document.querySelectorAll('button')).find(b =>
+        b.getAttribute('aria-label')?.toLowerCase().includes('send') &&
+        !b.disabled
+      );
+
+    if (sendBtn) {
+      sendBtn.click();
+    } else {
+      // Insert was successful, user can press Enter to send
+      showToast('Message typed — press Enter in the composer to send', 'warning');
+    }
     return true;
   }
 
@@ -655,6 +695,12 @@
       btn.innerHTML = '<span class="rf-spinner"></span> Sending…';
 
       try {
+        if (!isOnLinkedInProfile()) {
+          showToast('Go to the candidate\'s LinkedIn profile page first (/in/username), then click Send.', 'warning');
+          btn.disabled = false;
+          btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Send Message`;
+          return;
+        }
         await sendLinkedInMessage(msgText);
         const jd = await getActiveJD();
         await addEntry({
