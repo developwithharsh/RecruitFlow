@@ -90,6 +90,55 @@
     return /linkedin\.com\/in\//.test(window.location.href);
   }
 
+  // Detect if an InMail modal is open (out-of-network candidate)
+  function findInMailModal() {
+    return (
+      document.querySelector('.premium-compose-inmail') ||
+      document.querySelector('[data-test-modal="premium-compose-inmail"]') ||
+      document.querySelector('.premium-inmail-compose') ||
+      document.querySelector('form[action*="inmail"]') ||
+      // Generic: a modal dialog containing a subject field (InMail has a Subject line)
+      document.querySelector('[role="dialog"] input[name="subject"]') ||
+      document.querySelector('[role="dialog"] input[placeholder*="Subject"]') ||
+      null
+    );
+  }
+
+  // Type into InMail: fill subject + body
+  async function fillInMailComposer(modal, text) {
+    // Try to fill subject line
+    const subjectInput =
+      modal.querySelector('input[name="subject"]') ||
+      modal.querySelector('input[placeholder*="Subject"]') ||
+      modal.querySelector('input[placeholder*="subject"]');
+    if (subjectInput) {
+      subjectInput.focus();
+      subjectInput.value = 'Exciting Opportunity';
+      subjectInput.dispatchEvent(new Event('input', { bubbles: true }));
+      await sleep(200);
+    }
+
+    // Find the body textarea / contenteditable inside the modal
+    const body =
+      modal.querySelector('[contenteditable="true"]') ||
+      modal.querySelector('textarea');
+    if (body) {
+      body.focus();
+      if (body.tagName === 'TEXTAREA') {
+        body.value = text;
+        body.dispatchEvent(new Event('input', { bubbles: true }));
+      } else {
+        body.innerHTML = '';
+        const inserted = document.execCommand('insertText', false, text);
+        if (!inserted || !body.innerText?.trim()) {
+          body.innerHTML = text.replace(/\n/g, '<br>');
+          body.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      }
+    }
+  }
+
+  // Find regular message composer
   function findComposer() {
     const specific =
       document.querySelector('.msg-form__contenteditable') ||
@@ -104,14 +153,15 @@
     }) || null;
   }
 
-  async function waitForComposer(ms = 7000) {
+  async function waitForComposerOrInMail(ms = 7000) {
     const start = Date.now();
     while (Date.now() - start < ms) {
-      const el = findComposer();
-      if (el) return el;
+      const inmail  = findInMailModal();
+      const regular = findComposer();
+      if (inmail || regular) return { inmail, regular };
       await sleep(300);
     }
-    return null;
+    return { inmail: null, regular: null };
   }
 
   function typeIntoComposer(composer, text) {
@@ -130,50 +180,72 @@
       throw new Error('Open the candidate\'s LinkedIn profile page first, then click Send Message.');
     }
 
-    let composer = findComposer();
+    // Check if a composer or InMail is already open
+    let { inmail, regular } = await waitForComposerOrInMail(500);
 
-    if (!composer) {
-      const msgBtn =
+    if (!inmail && !regular) {
+      // Click the Message / Connect / InMail button
+      const actionBtn =
         document.querySelector('button[aria-label^="Message"]') ||
         document.querySelector('button[aria-label*="Message "]') ||
         document.querySelector('.pvs-profile-actions button[aria-label*="Message"]') ||
+        document.querySelector('button[aria-label*="InMail"]') ||
         Array.from(document.querySelectorAll('button')).find(b => {
           const label = (b.innerText?.trim() || b.getAttribute('aria-label') || '');
-          return label === 'Message' || label.startsWith('Message ');
+          return label === 'Message' || label.startsWith('Message ') || label.includes('InMail');
         });
 
-      if (!msgBtn) {
-        throw new Error('Message button not found. Scroll up to the top of the profile page and try again.');
+      if (!actionBtn) {
+        throw new Error('Message button not found. Scroll up to the top of this LinkedIn profile and try again.');
       }
 
-      msgBtn.scrollIntoView({ block: 'center' });
+      actionBtn.scrollIntoView({ block: 'center' });
       await sleep(300);
-      msgBtn.click();
+      actionBtn.click();
 
-      composer = await waitForComposer(7000);
+      // Wait for either regular composer or InMail modal
+      const result = await waitForComposerOrInMail(7000);
+      inmail  = result.inmail;
+      regular = result.regular;
     }
 
-    if (!composer) {
-      throw new Error('Could not open the message composer. Please click the Message button on this profile manually, then click Send Message again.');
+    if (inmail) {
+      // Out-of-network: fill InMail subject + body
+      await fillInMailComposer(inmail, text);
+      await sleep(500);
+      // Find the InMail send button
+      const sendBtn =
+        inmail.querySelector('button[type="submit"]') ||
+        Array.from(inmail.querySelectorAll('button')).find(b =>
+          (b.innerText || b.getAttribute('aria-label') || '').toLowerCase().includes('send')
+        );
+      if (sendBtn) {
+        sendBtn.click();
+      } else {
+        showToast('InMail filled — click the Send button to deliver it.', 'warning');
+      }
+      return true;
     }
 
-    typeIntoComposer(composer, text);
-    await sleep(600);
-
-    const sendBtn =
-      document.querySelector('.msg-form__send-button:not([disabled])') ||
-      document.querySelector('button.msg-form__send-button') ||
-      Array.from(document.querySelectorAll('button')).find(b => {
-        const label = (b.getAttribute('aria-label') || b.innerText || '').toLowerCase();
-        return (label === 'send' || label.includes('send message')) && !b.disabled;
-      });
-
-    if (sendBtn) {
-      sendBtn.click();
-    } else {
-      showToast('Message typed into composer — press Enter or click Send to deliver it.', 'warning');
+    if (regular) {
+      typeIntoComposer(regular, text);
+      await sleep(600);
+      const sendBtn =
+        document.querySelector('.msg-form__send-button:not([disabled])') ||
+        document.querySelector('button.msg-form__send-button') ||
+        Array.from(document.querySelectorAll('button')).find(b => {
+          const label = (b.getAttribute('aria-label') || b.innerText || '').toLowerCase();
+          return (label === 'send' || label.includes('send message')) && !b.disabled;
+        });
+      if (sendBtn) {
+        sendBtn.click();
+      } else {
+        showToast('Message typed — press Enter or click Send to deliver it.', 'warning');
+      }
+      return true;
     }
-    return true;
+
+    throw new Error('Could not open a message composer. Please click the Message button manually on this profile, then click Send Message again.');
   }
 
   // ── Template engine (inline) ─────────────────────────────────────────────
