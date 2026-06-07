@@ -24,8 +24,8 @@
   // Setup: create free account at emailjs.com → Email Services → connect Gmail
   // Create a template with variables: {{to_email}}, {{otp_code}}, {{user_name}}
   // Fill in your credentials below:
-  const EMAILJS_SERVICE_ID  = 'service_recruitflow';  // replace with your Service ID
-  const EMAILJS_TEMPLATE_ID = 'template_otp';          // replace with your Template ID
+  const EMAILJS_SERVICE_ID  = 'service_dgjqxrr';
+  const EMAILJS_TEMPLATE_ID = 'template_4p8rmnm';
   const EMAILJS_PUBLIC_KEY  = 'jMlu45Z3SUqn9daiI';        // replace with your Public Key
 
   async function sendOTPEmail(toEmail, otpCode, userName) {
