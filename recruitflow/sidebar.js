@@ -90,88 +90,80 @@
     return /linkedin\.com\/in\//.test(window.location.href);
   }
 
-  // Detect if an InMail modal is open (out-of-network candidate)
-  function findInMailModal() {
-    return (
-      document.querySelector('.premium-compose-inmail') ||
-      document.querySelector('[data-test-modal="premium-compose-inmail"]') ||
-      document.querySelector('.premium-inmail-compose') ||
-      document.querySelector('form[action*="inmail"]') ||
-      // Generic: a modal dialog containing a subject field (InMail has a Subject line)
-      document.querySelector('[role="dialog"] input[name="subject"]') ||
-      document.querySelector('[role="dialog"] input[placeholder*="Subject"]') ||
-      null
-    );
+  // Snapshot all contenteditable/textarea elements currently in DOM
+  function snapshotInputs() {
+    return new Set(document.querySelectorAll('[contenteditable], textarea, input[type="text"]'));
   }
 
-  // Type into InMail: fill subject + body
-  async function fillInMailComposer(modal, text) {
-    // Try to fill subject line
-    const subjectInput =
-      modal.querySelector('input[name="subject"]') ||
-      modal.querySelector('input[placeholder*="Subject"]') ||
-      modal.querySelector('input[placeholder*="subject"]');
-    if (subjectInput) {
-      subjectInput.focus();
-      subjectInput.value = 'Exciting Opportunity';
-      subjectInput.dispatchEvent(new Event('input', { bubbles: true }));
-      await sleep(200);
-    }
+  // After clicking Message, poll for any NEW input element that wasn't there before
+  async function waitForNewComposer(beforeSnapshot, ms = 10000) {
+    const start = Date.now();
+    while (Date.now() - start < ms) {
+      // 1. Check for new elements not in the snapshot
+      const all = document.querySelectorAll('[contenteditable="true"], textarea');
+      for (const el of all) {
+        if (beforeSnapshot.has(el)) continue;          // existed before — skip
+        const r = el.getBoundingClientRect();
+        if (r.width > 50 && r.height > 10) return el; // new visible element
+      }
 
-    // Find the body textarea / contenteditable inside the modal
-    const body =
-      modal.querySelector('[contenteditable="true"]') ||
-      modal.querySelector('textarea');
-    if (body) {
-      body.focus();
-      if (body.tagName === 'TEXTAREA') {
-        body.value = text;
-        body.dispatchEvent(new Event('input', { bubbles: true }));
-      } else {
-        body.innerHTML = '';
-        const inserted = document.execCommand('insertText', false, text);
-        if (!inserted || !body.innerText?.trim()) {
-          body.innerHTML = text.replace(/\n/g, '<br>');
-          body.dispatchEvent(new Event('input', { bubbles: true }));
-        }
+      // 2. Also try well-known LinkedIn composer selectors (in case snapshot missed them)
+      const known =
+        document.querySelector('.msg-form__contenteditable') ||
+        document.querySelector('[class*="msg-form"][contenteditable="true"]') ||
+        document.querySelector('[class*="compose"][contenteditable="true"]') ||
+        document.querySelector('[class*="message"][contenteditable="true"]') ||
+        document.querySelector('.msg-overlay-conversation-bubble [contenteditable]') ||
+        document.querySelector('[role="dialog"] [contenteditable="true"]') ||
+        document.querySelector('[role="dialog"] textarea');
+      if (known) return known;
+
+      await sleep(250);
+    }
+    return null;
+  }
+
+  function typeIntoElement(el, text) {
+    el.focus();
+    if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
+      el.value = text;
+      el.dispatchEvent(new Event('input',  { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    } else {
+      // contenteditable
+      el.innerHTML = '';
+      const ok = document.execCommand('insertText', false, text);
+      if (!ok || !el.innerText?.trim()) {
+        el.innerHTML = text.replace(/\n/g, '<br>');
+        el.dispatchEvent(new Event('input',  { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
       }
     }
   }
 
-  // Find regular message composer
-  function findComposer() {
-    const specific =
-      document.querySelector('.msg-form__contenteditable') ||
-      document.querySelector('.msg-overlay-conversation-bubble [contenteditable="true"]') ||
-      document.querySelector('.msg-form [contenteditable="true"]') ||
-      document.querySelector('.message-anywhere-form [contenteditable="true"]') ||
-      document.querySelector('[data-placeholder][contenteditable="true"]');
-    if (specific) return specific;
-    return Array.from(document.querySelectorAll('[contenteditable="true"]')).find(el => {
-      const r = el.getBoundingClientRect();
-      return r.width > 80 && r.height > 20;
-    }) || null;
+  function findSendButton() {
+    return (
+      document.querySelector('.msg-form__send-button:not([disabled])') ||
+      document.querySelector('button[type="submit"]:not([disabled])') ||
+      Array.from(document.querySelectorAll('button:not([disabled])')).find(b => {
+        const t = (b.getAttribute('aria-label') || b.innerText || '').toLowerCase().trim();
+        return t === 'send' || t === 'send message' || t === 'send now';
+      })
+    );
   }
 
-  async function waitForComposerOrInMail(ms = 7000) {
-    const start = Date.now();
-    while (Date.now() - start < ms) {
-      const inmail  = findInMailModal();
-      const regular = findComposer();
-      if (inmail || regular) return { inmail, regular };
-      await sleep(300);
-    }
-    return { inmail: null, regular: null };
-  }
-
-  function typeIntoComposer(composer, text) {
-    composer.focus();
-    composer.innerHTML = '';
-    const inserted = document.execCommand('insertText', false, text);
-    if (!inserted || !composer.innerText?.trim()) {
-      composer.innerHTML = text.replace(/\n/g, '<br>');
-      composer.dispatchEvent(new Event('input', { bubbles: true }));
-      composer.dispatchEvent(new Event('change', { bubbles: true }));
+  // Copy text to clipboard as a guaranteed fallback
+  async function copyToClipboard(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (_) {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return ok;
     }
   }
 
@@ -180,72 +172,52 @@
       throw new Error('Open the candidate\'s LinkedIn profile page first, then click Send Message.');
     }
 
-    // Check if a composer or InMail is already open
-    let { inmail, regular } = await waitForComposerOrInMail(500);
+    // Snapshot current inputs BEFORE any click
+    const before = snapshotInputs();
 
-    if (!inmail && !regular) {
-      // Click the Message / Connect / InMail button
-      const actionBtn =
-        document.querySelector('button[aria-label^="Message"]') ||
-        document.querySelector('button[aria-label*="Message "]') ||
-        document.querySelector('.pvs-profile-actions button[aria-label*="Message"]') ||
-        document.querySelector('button[aria-label*="InMail"]') ||
-        Array.from(document.querySelectorAll('button')).find(b => {
-          const label = (b.innerText?.trim() || b.getAttribute('aria-label') || '');
-          return label === 'Message' || label.startsWith('Message ') || label.includes('InMail');
-        });
+    // Find Message / InMail button
+    const actionBtn =
+      document.querySelector('button[aria-label^="Message"]') ||
+      document.querySelector('button[aria-label*="Message "]') ||
+      document.querySelector('button[aria-label*="InMail"]') ||
+      document.querySelector('.pvs-profile-actions button[aria-label*="Message"]') ||
+      Array.from(document.querySelectorAll('button')).find(b => {
+        const label = (b.innerText?.trim() || b.getAttribute('aria-label') || '').toLowerCase();
+        return label === 'message' || label.startsWith('message ') || label.includes('inmail');
+      });
 
-      if (!actionBtn) {
-        throw new Error('Message button not found. Scroll up to the top of this LinkedIn profile and try again.');
-      }
-
-      actionBtn.scrollIntoView({ block: 'center' });
-      await sleep(300);
-      actionBtn.click();
-
-      // Wait for either regular composer or InMail modal
-      const result = await waitForComposerOrInMail(7000);
-      inmail  = result.inmail;
-      regular = result.regular;
-    }
-
-    if (inmail) {
-      // Out-of-network: fill InMail subject + body
-      await fillInMailComposer(inmail, text);
-      await sleep(500);
-      // Find the InMail send button
-      const sendBtn =
-        inmail.querySelector('button[type="submit"]') ||
-        Array.from(inmail.querySelectorAll('button')).find(b =>
-          (b.innerText || b.getAttribute('aria-label') || '').toLowerCase().includes('send')
-        );
-      if (sendBtn) {
-        sendBtn.click();
-      } else {
-        showToast('InMail filled — click the Send button to deliver it.', 'warning');
-      }
+    if (!actionBtn) {
+      // Fallback: copy to clipboard
+      await copyToClipboard(text);
+      showToast('Message copied to clipboard! Click the Message button on LinkedIn and paste (Ctrl+V).', 'warning');
       return true;
     }
 
-    if (regular) {
-      typeIntoComposer(regular, text);
-      await sleep(600);
-      const sendBtn =
-        document.querySelector('.msg-form__send-button:not([disabled])') ||
-        document.querySelector('button.msg-form__send-button') ||
-        Array.from(document.querySelectorAll('button')).find(b => {
-          const label = (b.getAttribute('aria-label') || b.innerText || '').toLowerCase();
-          return (label === 'send' || label.includes('send message')) && !b.disabled;
-        });
-      if (sendBtn) {
-        sendBtn.click();
-      } else {
-        showToast('Message typed — press Enter or click Send to deliver it.', 'warning');
-      }
+    // Scroll button into view and click it
+    actionBtn.scrollIntoView({ block: 'center' });
+    await sleep(400);
+    actionBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+
+    // Wait for a new input to appear
+    const composer = await waitForNewComposer(before, 10000);
+
+    if (!composer) {
+      // Hard fallback: copy to clipboard and guide user
+      await copyToClipboard(text);
+      showToast('Message copied! Click Message on LinkedIn, then press Ctrl+V to paste and send.', 'warning');
       return true;
     }
 
-    throw new Error('Could not open a message composer. Please click the Message button manually on this profile, then click Send Message again.');
+    typeIntoElement(composer, text);
+    await sleep(700);
+
+    const sendBtn = findSendButton();
+    if (sendBtn) {
+      sendBtn.click();
+    } else {
+      showToast('Message typed — press Enter or click Send to deliver it.', 'warning');
+    }
+    return true;
   }
 
   // ── Template engine (inline) ─────────────────────────────────────────────
