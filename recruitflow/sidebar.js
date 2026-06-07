@@ -90,68 +90,88 @@
     return /linkedin\.com\/in\//.test(window.location.href);
   }
 
-  async function waitForComposer(ms = 3000) {
+  function findComposer() {
+    const specific =
+      document.querySelector('.msg-form__contenteditable') ||
+      document.querySelector('.msg-overlay-conversation-bubble [contenteditable="true"]') ||
+      document.querySelector('.msg-form [contenteditable="true"]') ||
+      document.querySelector('.message-anywhere-form [contenteditable="true"]') ||
+      document.querySelector('[data-placeholder][contenteditable="true"]');
+    if (specific) return specific;
+    return Array.from(document.querySelectorAll('[contenteditable="true"]')).find(el => {
+      const r = el.getBoundingClientRect();
+      return r.width > 80 && r.height > 20;
+    }) || null;
+  }
+
+  async function waitForComposer(ms = 7000) {
     const start = Date.now();
     while (Date.now() - start < ms) {
-      const el =
-        document.querySelector('.msg-form__contenteditable[contenteditable="true"]') ||
-        document.querySelector('.msg-form__contenteditable') ||
-        document.querySelector('[data-artdeco-is-focused] [contenteditable="true"]') ||
-        document.querySelector('.msg-overlay-conversation-bubble [contenteditable="true"]') ||
-        document.querySelector('[contenteditable="true"][aria-label]');
+      const el = findComposer();
       if (el) return el;
-      await sleep(200);
+      await sleep(300);
     }
     return null;
   }
 
+  function typeIntoComposer(composer, text) {
+    composer.focus();
+    composer.innerHTML = '';
+    const inserted = document.execCommand('insertText', false, text);
+    if (!inserted || !composer.innerText?.trim()) {
+      composer.innerHTML = text.replace(/\n/g, '<br>');
+      composer.dispatchEvent(new Event('input', { bubbles: true }));
+      composer.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  }
+
   async function sendLinkedInMessage(text) {
-    // Must be on a profile page to find the Message button
     if (!isOnLinkedInProfile()) {
-      throw new Error('Open the candidate\'s LinkedIn profile (/in/username) first, then click Send Message.');
+      throw new Error('Open the candidate\'s LinkedIn profile page first, then click Send Message.');
     }
 
-    // Find the Message button — try multiple selectors
-    const msgBtn =
-      document.querySelector('button[aria-label^="Message"]') ||
-      document.querySelector('button[aria-label*="Message "]') ||
-      document.querySelector('.pvs-profile-actions button[aria-label*="Message"]') ||
-      Array.from(document.querySelectorAll('button')).find(b =>
-        b.innerText?.trim() === 'Message' || b.getAttribute('aria-label') === 'Message'
-      );
+    let composer = findComposer();
 
-    if (!msgBtn) {
-      throw new Error('Message button not found. Scroll up to the top of the profile and try again.');
+    if (!composer) {
+      const msgBtn =
+        document.querySelector('button[aria-label^="Message"]') ||
+        document.querySelector('button[aria-label*="Message "]') ||
+        document.querySelector('.pvs-profile-actions button[aria-label*="Message"]') ||
+        Array.from(document.querySelectorAll('button')).find(b => {
+          const label = (b.innerText?.trim() || b.getAttribute('aria-label') || '');
+          return label === 'Message' || label.startsWith('Message ');
+        });
+
+      if (!msgBtn) {
+        throw new Error('Message button not found. Scroll up to the top of the profile page and try again.');
+      }
+
+      msgBtn.scrollIntoView({ block: 'center' });
+      await sleep(300);
+      msgBtn.click();
+
+      composer = await waitForComposer(7000);
     }
 
-    msgBtn.click();
+    if (!composer) {
+      throw new Error('Could not open the message composer. Please click the Message button on this profile manually, then click Send Message again.');
+    }
+
+    typeIntoComposer(composer, text);
     await sleep(600);
 
-    // Wait up to 3s for composer to appear
-    const composer = await waitForComposer(3000);
-    if (!composer) {
-      throw new Error('Message composer did not open. Click the Message button on the profile manually, then click Send again.');
-    }
-
-    composer.focus();
-    await sleep(150);
-    document.execCommand('insertText', false, text);
-    await sleep(500);
-
-    // Find and click the send button
     const sendBtn =
       document.querySelector('.msg-form__send-button:not([disabled])') ||
       document.querySelector('button.msg-form__send-button') ||
-      Array.from(document.querySelectorAll('button')).find(b =>
-        b.getAttribute('aria-label')?.toLowerCase().includes('send') &&
-        !b.disabled
-      );
+      Array.from(document.querySelectorAll('button')).find(b => {
+        const label = (b.getAttribute('aria-label') || b.innerText || '').toLowerCase();
+        return (label === 'send' || label.includes('send message')) && !b.disabled;
+      });
 
     if (sendBtn) {
       sendBtn.click();
     } else {
-      // Insert was successful, user can press Enter to send
-      showToast('Message typed — press Enter in the composer to send', 'warning');
+      showToast('Message typed into composer — press Enter or click Send to deliver it.', 'warning');
     }
     return true;
   }
