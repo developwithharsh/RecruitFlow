@@ -26,7 +26,7 @@
   // Fill in your credentials below:
   const EMAILJS_SERVICE_ID  = 'service_recruitflow';  // replace with your Service ID
   const EMAILJS_TEMPLATE_ID = 'template_otp';          // replace with your Template ID
-  const EMAILJS_PUBLIC_KEY  = 'YOUR_PUBLIC_KEY';        // replace with your Public Key
+  const EMAILJS_PUBLIC_KEY  = 'jMlu45Z3SUqn9daiI';        // replace with your Public Key
 
   async function sendOTPEmail(toEmail, otpCode, userName) {
     try {
