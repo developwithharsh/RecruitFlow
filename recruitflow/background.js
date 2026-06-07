@@ -1,8 +1,8 @@
 const GROQ_API_KEY = "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";
-const GROQ_MODEL = "llama3-70b-8192";
+const GROQ_MODEL = "llama-3.3-70b-versatile";
 const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
 
-const GEMINI_API_KEY = "AQ.Ab8RN6JpZ42EF8PbvyTWdNgxEi4-BqFbBk4Vsu2mi4DJhj792Q";
+const GEMINI_API_KEY = ""; // Groq is primary — add a valid AIza... key here for fallback
 const GEMINI_MODEL = "gemini-1.5-flash";
 const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
@@ -94,7 +94,10 @@ async function callGroq(systemPrompt, userPrompt) {
       temperature: 0.7
     })
   });
-  if (!response.ok) throw new Error(`Groq error: ${response.status}`);
+  if (!response.ok) {
+    const errBody = await response.text().catch(() => '');
+    throw new Error(`Groq ${response.status}: ${errBody}`);
+  }
   const data = await response.json();
   return data.choices[0].message.content;
 }
@@ -207,7 +210,7 @@ async function handleMessage(message, sender) {
           generatedText = await callGemini(`${systemPrompt}\n\n${userPrompt}`);
         } catch (geminiErr) {
           console.error('RecruitFlow: Both AI providers failed', geminiErr);
-          return { success: false, error: 'AI unavailable. Please try again.' };
+          return { success: false, error: `AI failed: ${groqErr?.message || 'unknown error'}` };
         }
       }
 
@@ -246,7 +249,7 @@ Return only the improved JD. No explanation.`;
         try {
           optimized = await callGemini(`${systemPrompt}\n\n${userPrompt}`);
         } catch (geminiErr) {
-          return { success: false, error: 'AI unavailable. Please try again.' };
+          return { success: false, error: `AI failed: ${groqErr?.message || 'unknown error'}` };
         }
       }
 

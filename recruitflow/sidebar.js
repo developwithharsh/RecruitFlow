@@ -529,7 +529,7 @@
         document.getElementById('rf-pending-optimized').value = result.optimized;
         await refreshAIBadge();
         showToast('JD optimized!', 'success');
-      } catch (e) { showToast('AI unavailable. Try again.', 'error'); }
+      } catch (e) { console.error('[RecruitFlow] AI error:', e); showToast('AI unavailable. Check F12 console for details.', 'error'); }
       finally {
         btn.disabled = false;
         btn.innerHTML = '✦ Optimize with AI <span class="rf-ai-uses-badge"></span>';
@@ -626,7 +626,7 @@
         if (ta)   ta.value = result.message;
         await refreshAIBadge();
         showToast('Message generated!', 'success');
-      } catch (_) { showToast('AI unavailable. Try again.', 'error'); }
+      } catch (e) { console.error('[RecruitFlow] AI error:', e); showToast('AI unavailable. Check F12 console for details.', 'error'); }
       finally {
         btn.disabled = false;
         btn.innerHTML = '✦ Refine &amp; Generate with AI <span class="rf-ai-uses-badge"></span>';

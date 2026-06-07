@@ -104,7 +104,7 @@
       <button class="rf-auth-tab" data-auth-tab="signup">Sign Up</button>
     </div>
     <!-- LOGIN -->
-    <div id="rf-login-form" class="rf-auth-form">
+    <div id="rf-login-form" class="rf-auth-form rf-form-visible">
       <div class="rf-field-group">
         <label class="rf-label">Email</label>
         <input id="rf-login-email" type="email" class="rf-input" placeholder="you@company.com" autocomplete="email">
@@ -120,7 +120,7 @@
       <button id="rf-login-btn" class="rf-btn-primary">Sign In</button>
     </div>
     <!-- SIGNUP -->
-    <div id="rf-signup-form" class="rf-auth-form" style="display:none;">
+    <div id="rf-signup-form" class="rf-auth-form">
       <div class="rf-field-group">
         <label class="rf-label">Full Name</label>
         <input id="rf-signup-name" type="text" class="rf-input" placeholder="Rahul Sharma">
@@ -140,7 +140,7 @@
       <button id="rf-signup-btn" class="rf-btn-primary">Create Account & Send OTP</button>
     </div>
     <!-- OTP VERIFY -->
-    <div id="rf-otp-form" class="rf-auth-form" style="display:none;">
+    <div id="rf-otp-form" class="rf-auth-form">
       <div class="rf-otp-sent-msg">
         <span>📧</span>
         <p>A 6-digit code was sent to<br><strong id="rf-otp-email-display"></strong></p>

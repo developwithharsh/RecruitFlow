@@ -77,8 +77,8 @@
   cursor: pointer !important;
   position: absolute !important;
   left: -32px !important;
-  top: 50% !important;
-  transform: translateY(-50%) !important;
+  top: 120px !important;
+  transform: none !important;
   box-shadow: -3px 0 12px rgba(0,0,0,0.18) !important;
   transition: background 0.2s !important;
   flex-shrink: 0 !important;
@@ -1111,11 +1111,16 @@
   box-shadow: 0 1px 4px rgba(0,0,0,0.08) !important;
 }
 
+/* Auth forms: hidden by default, shown via .rf-form-visible class */
 .rf-auth-form {
-  display: flex !important;
+  display: none !important;
   flex-direction: column !important;
   gap: 10px !important;
   padding: 14px 14px 20px !important;
+}
+
+.rf-auth-form.rf-form-visible {
+  display: flex !important;
 }
 
 .rf-pw-wrap {
