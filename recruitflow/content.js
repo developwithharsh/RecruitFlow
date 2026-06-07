@@ -141,9 +141,15 @@
     </div>
     <!-- OTP VERIFY -->
     <div id="rf-otp-form" class="rf-auth-form">
-      <div class="rf-otp-sent-msg">
+      <div class="rf-otp-sent-msg" id="rf-otp-sent-msg">
         <span>📧</span>
         <p>A 6-digit code was sent to<br><strong id="rf-otp-email-display"></strong></p>
+      </div>
+      <!-- Shown when email sending fails — OTP displayed directly in sidebar -->
+      <div id="rf-otp-inline-box" style="display:none;background:#EFF6FF;border:2px dashed #2563EB;border-radius:10px;padding:14px;text-align:center;margin-bottom:4px;">
+        <p style="font-size:11px;color:#1D4ED8;margin:0 0 6px;font-weight:600;">📬 Email not configured — your OTP is:</p>
+        <div id="rf-otp-inline-code" style="font-size:28px;font-weight:700;letter-spacing:8px;color:#2563EB;font-family:monospace;"></div>
+        <p style="font-size:10px;color:#64748B;margin:6px 0 0;">Enter this code below to verify</p>
       </div>
       <div class="rf-field-group">
         <label class="rf-label">Enter OTP</label>

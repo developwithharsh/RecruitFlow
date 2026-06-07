@@ -1054,12 +1054,21 @@
         pendingOTP        = otp;
         pendingSignupData = { name, email, password };
 
-        // Show OTP form regardless of email success (show code in console if email not configured)
-        if (!sent) console.info('[RecruitFlow] EmailJS not configured — OTP for testing:', otp);
         document.getElementById('rf-otp-email-display').textContent = email;
         document.getElementById('rf-signup-form').classList.remove('rf-form-visible');
         document.getElementById('rf-otp-form').classList.add('rf-form-visible');
-        if (!sent) showToast('OTP shown in browser console (EmailJS not configured)', 'warning');
+
+        if (sent) {
+          // Email sent — show normal "sent to email" message
+          document.getElementById('rf-otp-sent-msg').style.display  = '';
+          document.getElementById('rf-otp-inline-box').style.display = 'none';
+        } else {
+          // Email not configured — show OTP directly in the sidebar so user can sign up
+          console.info('[RecruitFlow] EmailJS not configured — OTP:', otp);
+          document.getElementById('rf-otp-sent-msg').style.display   = 'none';
+          document.getElementById('rf-otp-inline-box').style.display  = 'block';
+          document.getElementById('rf-otp-inline-code').textContent   = otp;
+        }
       } catch (e) { errEl.textContent = 'Failed to send OTP. Try again.'; errEl.style.display = 'block'; }
       finally { btn.disabled = false; btn.textContent = 'Create Account & Send OTP'; }
     });
@@ -1094,8 +1103,15 @@
       const otp  = generateOTP();
       pendingOTP = otp;
       const sent = await sendOTPEmail(pendingSignupData.email, otp, pendingSignupData.name);
-      if (!sent) console.info('[RecruitFlow] Resent OTP:', otp);
-      showToast(sent ? 'OTP resent!' : 'OTP resent (check console)', sent ? 'success' : 'warning');
+      if (sent) {
+        showToast('OTP resent to your email!', 'success');
+      } else {
+        console.info('[RecruitFlow] Resent OTP:', otp);
+        document.getElementById('rf-otp-inline-code').textContent  = otp;
+        document.getElementById('rf-otp-inline-box').style.display = 'block';
+        document.getElementById('rf-otp-sent-msg').style.display   = 'none';
+        showToast('New OTP shown above', 'success');
+      }
     });
 
     // OTP Back
