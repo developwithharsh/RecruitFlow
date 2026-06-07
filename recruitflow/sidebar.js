@@ -606,7 +606,7 @@
 
     // AI Generate
     document.getElementById('rf-ai-generate-btn')?.addEventListener('click', async () => {
-      if (!currentProfile?.name) { showToast('Visit a LinkedIn profile first', 'error'); return; }
+      if (!currentProfile?.name) { showToast('No profile loaded — AI will generate a generic message', 'warning'); }
       if (!await canUseAI()) { showUpgradeOverlay(); return; }
       const jd = await getActiveJD();
       if (!jd) { showToast('Save a JD in the JD tab first', 'warning'); return; }
@@ -985,9 +985,9 @@
         document.querySelectorAll('.rf-auth-tab').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         const tab = btn.dataset.authTab;
-        document.getElementById('rf-login-form').style.display  = tab === 'login'  ? 'flex' : 'none';
-        document.getElementById('rf-signup-form').style.display = tab === 'signup' ? 'flex' : 'none';
-        document.getElementById('rf-otp-form').style.display    = 'none';
+        document.getElementById('rf-login-form').classList.toggle('rf-form-visible',  tab === 'login');
+        document.getElementById('rf-signup-form').classList.toggle('rf-form-visible', tab === 'signup');
+        document.getElementById('rf-otp-form').classList.remove('rf-form-visible');
         document.getElementById('rf-login-error').style.display  = 'none';
         document.getElementById('rf-signup-error').style.display = 'none';
       });
@@ -1057,8 +1057,8 @@
         // Show OTP form regardless of email success (show code in console if email not configured)
         if (!sent) console.info('[RecruitFlow] EmailJS not configured — OTP for testing:', otp);
         document.getElementById('rf-otp-email-display').textContent = email;
-        document.getElementById('rf-signup-form').style.display = 'none';
-        document.getElementById('rf-otp-form').style.display    = 'flex';
+        document.getElementById('rf-signup-form').classList.remove('rf-form-visible');
+        document.getElementById('rf-otp-form').classList.add('rf-form-visible');
         if (!sent) showToast('OTP shown in browser console (EmailJS not configured)', 'warning');
       } catch (e) { errEl.textContent = 'Failed to send OTP. Try again.'; errEl.style.display = 'block'; }
       finally { btn.disabled = false; btn.textContent = 'Create Account & Send OTP'; }
@@ -1100,8 +1100,8 @@
 
     // OTP Back
     document.getElementById('rf-otp-back-btn')?.addEventListener('click', () => {
-      document.getElementById('rf-otp-form').style.display    = 'none';
-      document.getElementById('rf-signup-form').style.display = 'flex';
+      document.getElementById('rf-otp-form').classList.remove('rf-form-visible');
+      document.getElementById('rf-signup-form').classList.add('rf-form-visible');
       pendingOTP = null; pendingSignupData = null;
     });
 
