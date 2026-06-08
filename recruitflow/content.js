@@ -496,38 +496,75 @@
     }
   }).observe(document, { subtree: true, childList: true });
 
-  // ── RF Quick-Send button in LinkedIn chat compose boxes ───────────────────
+  // ── RF Quick-Send floating button (always visible in LinkedIn messaging) ───
 
-  // Find LinkedIn compose boxes using every known selector + placeholder text
-  function findAllComposeBoxes() {
-    const byClass = Array.from(document.querySelectorAll(
-      '.msg-form__contenteditable, .msg-overlay-conversation-bubble__content-wrapper [contenteditable="true"]'
-    ));
-    const byPlaceholder = Array.from(document.querySelectorAll('[contenteditable="true"]')).filter(el => {
-      const ph = el.getAttribute('data-placeholder') || el.getAttribute('placeholder') || '';
-      return ph.toLowerCase().includes('write a message') || ph.toLowerCase().includes('message');
+  // Find the active compose box — broadest possible search
+  function getActiveComposer() {
+    // Exact known LinkedIn classes
+    const known = document.querySelector('.msg-form__contenteditable');
+    if (known) return known;
+
+    // Any contenteditable with messaging placeholder text
+    const byPH = Array.from(document.querySelectorAll('[contenteditable="true"]')).find(el => {
+      const ph = (el.getAttribute('data-placeholder') || el.getAttribute('aria-placeholder') || el.getAttribute('placeholder') || '').toLowerCase();
+      return ph.includes('write a message') || ph.includes('write a msg') || ph.includes('message');
     });
-    const byVisible = Array.from(document.querySelectorAll('[contenteditable="true"]')).filter(el => {
+    if (byPH) return byPH;
+
+    // Any large visible contenteditable in the bottom half of the screen
+    const byPos = Array.from(document.querySelectorAll('[contenteditable="true"]')).find(el => {
       const r = el.getBoundingClientRect();
-      return r.width > 150 && r.height > 30 && r.bottom > window.innerHeight * 0.5;
+      return r.width > 100 && r.height > 20 && r.top > window.innerHeight * 0.45;
     });
-    const all = new Set([...byClass, ...byPlaceholder, ...byVisible]);
-    return Array.from(all);
+    return byPos || null;
   }
 
-  // Build the card popup showing saved JDs + their messages
-  async function buildCardPopup(composeBox, anchorBtn) {
-    // Remove any existing popup
+  function typeIntoBox(box, text) {
+    box.focus();
+    box.innerHTML = '';
+    const ok = document.execCommand('insertText', false, text);
+    if (!ok || !box.innerText?.trim()) {
+      box.innerHTML = text.replace(/\n/g, '<br>');
+      box.dispatchEvent(new Event('input',  { bubbles: true }));
+      box.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  }
+
+  function clickLinkedInSend() {
+    const btn =
+      document.querySelector('.msg-form__send-button:not([disabled])') ||
+      document.querySelector('button.msg-form__send-button') ||
+      Array.from(document.querySelectorAll('button:not([disabled])')).find(b => {
+        const t = (b.getAttribute('aria-label') || b.innerText || '').toLowerCase().trim();
+        return t === 'send' || t === 'send message';
+      });
+    if (btn) { btn.click(); return true; }
+    return false;
+  }
+
+  function buildQuickMessage(jd, recruiterName, recruiterCompany) {
+    // Try to read candidate name from the open chat header
+    const headerName =
+      document.querySelector('.msg-overlay-bubble-header__title')?.innerText?.trim() ||
+      document.querySelector('.msg-thread-heading__name')?.innerText?.trim() ||
+      document.querySelector('.presence-entity__name')?.innerText?.trim() ||
+      document.querySelector('.msg-s-message-group__profile-link')?.innerText?.trim() ||
+      '';
+    const firstName = (headerName || 'there').split(' ')[0];
+    const jdTitle   = jd.title || 'an exciting opportunity';
+    return `Hi ${firstName},\n\nI came across your profile and wanted to reach out about a ${jdTitle} role that I think could be a great fit for you.\n\nWould you be open to a quick 10-minute call this week?\n\nBest regards,\n${recruiterName}${recruiterCompany ? ', ' + recruiterCompany : ''}`;
+  }
+
+  async function buildCardPopup(anchorBtn) {
     document.getElementById('rf-card-popup')?.remove();
 
-    const [jdsRaw, activeIdRaw, settingsRaw, usageRaw] = await Promise.all([
-      new Promise(r => chrome.storage.local.get('recruitflow_jds',      d => r(d.recruitflow_jds))),
+    const [jdsRaw, activeIdRaw, settingsRaw] = await Promise.all([
+      new Promise(r => chrome.storage.local.get('recruitflow_jds',       d => r(d.recruitflow_jds))),
       new Promise(r => chrome.storage.local.get('recruitflow_active_jd', d => r(d.recruitflow_active_jd))),
-      new Promise(r => chrome.storage.local.get('recruitflow_settings',  d => r(d.recruitflow_settings))),
-      new Promise(r => chrome.storage.local.get('recruitflow_usage',     d => r(d.recruitflow_usage)))
+      new Promise(r => chrome.storage.local.get('recruitflow_settings',  d => r(d.recruitflow_settings)))
     ]);
 
-    const jds      = jdsRaw     || [];
+    const jds      = jdsRaw    || [];
     const activeId = activeIdRaw || null;
     const settings = settingsRaw || {};
     const recruiterName    = settings.recruiter_name    || 'Recruiter';
@@ -537,197 +574,185 @@
     popup.id = 'rf-card-popup';
     popup.style.cssText = [
       'position:fixed', 'z-index:2147483647',
-      'background:#fff', 'border-radius:14px',
-      'box-shadow:0 8px 32px rgba(0,0,0,0.18)',
-      'width:320px', 'max-height:420px', 'overflow:hidden',
+      'background:#fff', 'border-radius:16px',
+      'box-shadow:0 12px 40px rgba(0,0,0,0.22)',
+      'width:300px', 'max-height:440px',
       'display:flex', 'flex-direction:column',
       'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif',
-      'border:1px solid #E2E8F0'
+      'border:1px solid #E2E8F0', 'overflow:hidden'
     ].join(';');
 
-    // Position popup above the button
-    const btnRect = anchorBtn.getBoundingClientRect();
-    const top  = Math.max(10, btnRect.top - 440);
-    const left = Math.min(window.innerWidth - 340, btnRect.left);
+    // Position above the anchor button
+    const r    = anchorBtn.getBoundingClientRect();
+    const top  = Math.max(8, r.top - 450);
+    const left = Math.max(8, r.right - 300);
     popup.style.top  = top  + 'px';
     popup.style.left = left + 'px';
 
-    // Header
     popup.innerHTML = `
-      <div style="padding:12px 14px 10px;border-bottom:1px solid #E2E8F0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
-        <div style="display:flex;align-items:center;gap:7px;">
-          <div style="background:#2563EB;color:#fff;width:24px;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">RF</div>
-          <span style="font-weight:700;font-size:13px;color:#0F172A;">Quick Send</span>
+      <div style="padding:13px 14px 10px;border-bottom:1px solid #E2E8F0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:#F8FAFC;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="background:#2563EB;color:#fff;width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;letter-spacing:-.5px;">RF</div>
+          <div>
+            <div style="font-weight:700;font-size:13px;color:#0F172A;line-height:1.1;">Quick Send</div>
+            <div style="font-size:10px;color:#64748B;">Select a job to send message</div>
+          </div>
         </div>
-        <button id="rf-popup-close" style="background:none;border:none;font-size:16px;cursor:pointer;color:#64748B;line-height:1;padding:2px 4px;">✕</button>
+        <button id="rf-popup-close" style="background:none;border:none;font-size:18px;cursor:pointer;color:#94A3B8;line-height:1;padding:0 2px;">✕</button>
       </div>
-      <p style="font-size:11px;color:#64748B;margin:0;padding:8px 14px 6px;flex-shrink:0;">Select a job — message will be sent automatically</p>
-      <div id="rf-card-list" style="overflow-y:auto;flex:1;padding:6px 10px 10px;"></div>
+      <div id="rf-card-list" style="overflow-y:auto;flex:1;padding:8px;"></div>
     `;
     document.body.appendChild(popup);
 
     popup.querySelector('#rf-popup-close').addEventListener('click', () => popup.remove());
-    document.addEventListener('click', function outsideClick(e) {
-      if (!popup.contains(e.target) && e.target !== anchorBtn) {
-        popup.remove();
-        document.removeEventListener('click', outsideClick);
-      }
-    }, true);
+
+    // Close when clicking outside
+    setTimeout(() => {
+      document.addEventListener('click', function outsideClick(e) {
+        if (!popup.contains(e.target) && e.target !== anchorBtn) {
+          popup.remove();
+          document.removeEventListener('click', outsideClick);
+        }
+      }, true);
+    }, 100);
 
     const list = popup.querySelector('#rf-card-list');
 
     if (!jds.length) {
-      list.innerHTML = `<div style="text-align:center;padding:24px 12px;color:#64748B;font-size:12px;">
-        No job descriptions saved yet.<br>Add a JD in the RecruitFlow sidebar first.
-      </div>`;
+      list.innerHTML = `
+        <div style="text-align:center;padding:28px 16px;color:#64748B;">
+          <div style="font-size:28px;margin-bottom:8px;">📋</div>
+          <div style="font-size:12px;font-weight:600;color:#0F172A;margin-bottom:4px;">No JDs saved yet</div>
+          <div style="font-size:11px;">Add a Job Description in the RecruitFlow sidebar (JD tab) first.</div>
+        </div>`;
       return;
     }
 
     jds.forEach(jd => {
       const isActive = jd.id === activeId;
+      const snippet  = (jd.text || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+
       const card = document.createElement('div');
       card.style.cssText = [
         'background:' + (isActive ? '#EFF6FF' : '#F8FAFC'),
-        'border:1.5px solid ' + (isActive ? '#2563EB' : '#E2E8F0'),
-        'border-radius:10px', 'padding:11px 13px', 'margin-bottom:7px',
-        'cursor:pointer', 'transition:all .15s'
+        'border:2px solid ' + (isActive ? '#2563EB' : '#E2E8F0'),
+        'border-radius:10px', 'padding:11px 12px 10px', 'margin-bottom:6px', 'cursor:pointer'
       ].join(';');
 
-      const snippet = (jd.text || '').slice(0, 90).replace(/\n/g, ' ');
       card.innerHTML = `
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
-          <span style="font-weight:700;font-size:12px;color:#0F172A;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${jd.title || 'Untitled JD'}</span>
-          ${isActive ? '<span style="font-size:10px;background:#2563EB;color:#fff;padding:2px 7px;border-radius:10px;flex-shrink:0;margin-left:6px;">Active</span>' : ''}
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin-bottom:5px;">
+          <span style="font-weight:700;font-size:12px;color:#0F172A;line-height:1.3;flex:1;">${jd.title || 'Untitled JD'}</span>
+          ${isActive ? '<span style="font-size:9px;background:#2563EB;color:#fff;padding:2px 6px;border-radius:8px;flex-shrink:0;font-weight:600;">ACTIVE</span>' : ''}
         </div>
-        <div style="font-size:11px;color:#64748B;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${snippet || 'No description'}</div>
-        <div style="margin-top:8px;display:flex;align-items:center;gap:6px;">
-          <button class="rf-send-card-btn" style="flex:1;background:#2563EB;color:#fff;border:none;border-radius:7px;padding:7px 0;font-size:12px;font-weight:600;cursor:pointer;">
-            ✦ Send Message
-          </button>
-        </div>
+        ${snippet ? `<div style="font-size:10px;color:#64748B;line-height:1.4;margin-bottom:8px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${snippet}…</div>` : ''}
+        <button class="rf-send-now-btn" style="width:100%;background:#2563EB;color:#fff;border:none;border-radius:7px;padding:8px 0;font-size:12px;font-weight:600;cursor:pointer;letter-spacing:.2px;">
+          ✦ Send Message
+        </button>
       `;
 
-      card.addEventListener('mouseenter', () => { card.style.boxShadow = '0 2px 12px rgba(37,99,235,.15)'; });
-      card.addEventListener('mouseleave', () => { card.style.boxShadow = 'none'; });
+      card.addEventListener('mouseenter', () => { card.style.boxShadow = '0 2px 12px rgba(37,99,235,.18)'; card.style.borderColor = '#2563EB'; });
+      card.addEventListener('mouseleave', () => { card.style.boxShadow = 'none'; card.style.borderColor = isActive ? '#2563EB' : '#E2E8F0'; });
 
-      card.querySelector('.rf-send-card-btn').addEventListener('click', async e => {
+      const sendBtn = card.querySelector('.rf-send-now-btn');
+      sendBtn.addEventListener('mouseenter', () => { sendBtn.style.background = '#1D4ED8'; });
+      sendBtn.addEventListener('mouseleave', () => { sendBtn.style.background = '#2563EB'; });
+
+      sendBtn.addEventListener('click', async e => {
         e.stopPropagation();
-        const sendBtn = card.querySelector('.rf-send-card-btn');
         sendBtn.textContent = 'Sending…';
-        sendBtn.disabled = true;
+        sendBtn.disabled    = true;
 
-        // Build message using template with profile data read from DOM
-        const profile = {
-          name:     (document.querySelector('h1.text-heading-xlarge, h1') || {}).innerText?.trim() || '',
-          role:     '',
-          company:  '',
-          location: ''
-        };
-
-        const msg = buildQuickMessage(jd, profile, recruiterName, recruiterCompany);
-
-        // Type into composer
-        composeBox.focus();
-        composeBox.innerHTML = '';
-        const ok = document.execCommand('insertText', false, msg);
-        if (!ok || !composeBox.innerText?.trim()) {
-          composeBox.innerHTML = msg.replace(/\n/g, '<br>');
-          composeBox.dispatchEvent(new Event('input',  { bubbles: true }));
-          composeBox.dispatchEvent(new Event('change', { bubbles: true }));
+        const composer = getActiveComposer();
+        if (!composer) {
+          sendBtn.textContent = 'Click message box first';
+          sendBtn.style.background = '#DC2626';
+          setTimeout(() => {
+            sendBtn.textContent = '✦ Send Message';
+            sendBtn.style.background = '#2563EB';
+            sendBtn.disabled = false;
+          }, 2500);
+          return;
         }
 
-        await new Promise(r => setTimeout(r, 600));
+        const msg = buildQuickMessage(jd, recruiterName, recruiterCompany);
+        typeIntoBox(composer, msg);
+        await new Promise(r => setTimeout(r, 700));
 
-        // Click LinkedIn's send button
-        const linkedInSend =
-          document.querySelector('.msg-form__send-button:not([disabled])') ||
-          document.querySelector('button.msg-form__send-button') ||
-          Array.from(document.querySelectorAll('button:not([disabled])')).find(b => {
-            const t = (b.getAttribute('aria-label') || b.innerText || '').toLowerCase().trim();
-            return t === 'send' || t === 'send message';
-          });
-
-        if (linkedInSend) {
-          linkedInSend.click();
-          sendBtn.textContent = '✓ Sent!';
-          sendBtn.style.background = '#059669';
-          setTimeout(() => popup.remove(), 1200);
-        } else {
-          sendBtn.textContent = '✓ Typed — press Enter';
-          sendBtn.style.background = '#059669';
-          setTimeout(() => popup.remove(), 2000);
-        }
+        const sent = clickLinkedInSend();
+        sendBtn.textContent      = sent ? '✓ Sent!' : '✓ Typed — press Enter';
+        sendBtn.style.background = '#059669';
+        setTimeout(() => popup.remove(), 1400);
       });
 
       list.appendChild(card);
     });
   }
 
-  function buildQuickMessage(jd, profile, recruiterName, recruiterCompany) {
-    const firstName = (profile.name || '').split(' ')[0] || 'there';
-    const role      = profile.role    || 'your current role';
-    const company   = profile.company || 'your company';
-    const jdTitle   = jd.title        || 'an exciting opportunity';
-    return `Hi ${firstName},\n\nI came across your profile and was impressed by your experience as ${role} at ${company}.\n\nI'm reaching out about a ${jdTitle} role that I think could be a great fit for your background.\n\nWould you be open to a quick 10-minute call this week?\n\nBest regards,\n${recruiterName}${recruiterCompany ? ', ' + recruiterCompany : ''}`;
-  }
-
-  function injectChatButton(composeBox) {
-    if (composeBox._rfBtnInjected) return;
-    composeBox._rfBtnInjected = true;
+  // ── Create the fixed floating RF button ──────────────────────────────────
+  function createFloatingRFButton() {
+    if (document.getElementById('rf-float-btn')) return;
 
     const btn = document.createElement('button');
-    btn.className = 'rf-chat-trigger-btn';
+    btn.id = 'rf-float-btn';
     btn.innerHTML = `
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;">
-        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-      </svg>
-      <span style="margin-left:5px;">RF Send</span>
+      <div style="font-weight:800;font-size:11px;letter-spacing:-.5px;line-height:1;">RF</div>
+      <div style="font-size:9px;font-weight:600;margin-top:2px;opacity:.9;letter-spacing:.2px;">SEND</div>
     `;
     btn.style.cssText = [
-      'display:inline-flex', 'align-items:center',
-      'background:#2563EB', 'color:#fff',
-      'border:none', 'border-radius:8px',
-      'padding:6px 12px', 'font-size:12px', 'font-weight:600',
-      'cursor:pointer', 'line-height:1',
-      'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif',
-      'box-shadow:0 2px 8px rgba(37,99,235,.4)',
-      'transition:background .15s', 'white-space:nowrap'
+      'position:fixed',
+      'bottom:80px',
+      'right:8px',
+      'width:40px',
+      'height:40px',
+      'background:#2563EB',
+      'color:#fff',
+      'border:none',
+      'border-radius:10px',
+      'cursor:pointer',
+      'z-index:2147483646',
+      'display:flex',
+      'flex-direction:column',
+      'align-items:center',
+      'justify-content:center',
+      'box-shadow:0 3px 12px rgba(37,99,235,.5)',
+      'transition:all .15s',
+      'font-family:-apple-system,BlinkMacSystemFont,sans-serif'
     ].join(';');
-    btn.addEventListener('mouseenter', () => { btn.style.background = '#1D4ED8'; });
-    btn.addEventListener('mouseleave', () => { btn.style.background = '#2563EB'; });
+
+    btn.addEventListener('mouseenter', () => {
+      btn.style.background   = '#1D4ED8';
+      btn.style.transform    = 'scale(1.08)';
+      btn.style.boxShadow    = '0 5px 18px rgba(37,99,235,.6)';
+    });
+    btn.addEventListener('mouseleave', () => {
+      btn.style.background = '#2563EB';
+      btn.style.transform  = 'scale(1)';
+      btn.style.boxShadow  = '0 3px 12px rgba(37,99,235,.5)';
+    });
     btn.addEventListener('click', e => {
-      e.preventDefault(); e.stopPropagation();
-      buildCardPopup(composeBox, btn);
+      e.stopPropagation();
+      buildCardPopup(btn);
     });
 
-    // Insert the button ABOVE the compose box, inside the toolbar row
-    // Try to find the toolbar row first; fallback to inserting before compose box
-    const toolbar =
-      composeBox.closest('.msg-form__container')?.querySelector('.msg-form__footer, .msg-form__toolbar') ||
-      composeBox.closest('[class*="msg-form"]')?.querySelector('[class*="footer"], [class*="toolbar"]');
+    document.body.appendChild(btn);
+  }
 
-    if (toolbar) {
-      toolbar.style.position = 'relative';
-      toolbar.insertBefore(btn, toolbar.firstChild);
+  // Show the floating button whenever LinkedIn messaging is visible
+  function updateFloatingBtn() {
+    const onMessaging =
+      location.href.includes('/messaging') ||
+      !!document.querySelector('.msg-overlay-list-bubble, .msg-overlay-conversation-bubble, .msg-form, .msg-thread, [class*="msg-overlay"]');
+
+    const existing = document.getElementById('rf-float-btn');
+    if (onMessaging) {
+      if (!existing) createFloatingRFButton();
     } else {
-      // Wrap composeBox parent and insert above
-      const parent = composeBox.parentElement;
-      if (parent) {
-        const wrapper = document.createElement('div');
-        wrapper.style.cssText = 'display:flex;align-items:center;justify-content:flex-end;padding:4px 6px 2px;background:#F8FAFC;border-bottom:1px solid #E2E8F0;';
-        wrapper.appendChild(btn);
-        parent.insertBefore(wrapper, composeBox);
-      }
+      existing?.remove();
     }
   }
 
-  // Watch for compose boxes appearing (chat overlays, messaging page)
-  const rfChatObserver = new MutationObserver(() => {
-    findAllComposeBoxes().forEach(box => injectChatButton(box));
-  });
-  rfChatObserver.observe(document.body, { subtree: true, childList: true });
-  // Also run immediately in case compose box already exists
-  setTimeout(() => findAllComposeBoxes().forEach(box => injectChatButton(box)), 1000);
+  new MutationObserver(updateFloatingBtn).observe(document.body, { subtree: true, childList: true });
+  updateFloatingBtn();
 
   // ── Force inject from popup (Step 4) ─────────────────────────────────────
   window.addEventListener('rf-force-inject', () => {
