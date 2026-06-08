@@ -496,6 +496,78 @@
     }
   }).observe(document, { subtree: true, childList: true });
 
+  // ── Inject RF button into LinkedIn chat compose boxes ─────────────────────
+  const RF_BTN_ID = 'rf-chat-insert-btn';
+
+  function getComposedMessage() {
+    // Pull whichever message is currently ready in the sidebar
+    const aiWrap = document.getElementById('rf-ai-message-wrap');
+    const aiVisible = aiWrap && aiWrap.style.display !== 'none';
+    const aiText  = document.getElementById('rf-ai-message-text')?.value?.trim();
+    const tplText = document.getElementById('rf-message-preview')?.value?.trim();
+    return (aiVisible && aiText) ? aiText : (tplText || '');
+  }
+
+  function injectChatButton(composeBox) {
+    // Avoid duplicate buttons
+    const container = composeBox.closest('.msg-form__container, .msg-form, [class*="msg-form"], [class*="compose"]') || composeBox.parentElement;
+    if (!container) return;
+    if (container.querySelector('.rf-chat-btn')) return;
+
+    const btn = document.createElement('button');
+    btn.className = 'rf-chat-btn';
+    btn.setAttribute('title', 'Insert RecruitFlow message');
+    btn.innerHTML = `<img src="${chrome.runtime.getURL('assets/icon16.png')}" width="12" height="12" style="vertical-align:middle;margin-right:4px;">RF Insert`;
+    btn.style.cssText = [
+      'display:inline-flex', 'align-items:center', 'gap:3px',
+      'background:#2563EB', 'color:#fff', 'border:none', 'border-radius:6px',
+      'padding:4px 10px', 'font-size:11px', 'font-weight:600', 'cursor:pointer',
+      'font-family:-apple-system,BlinkMacSystemFont,sans-serif',
+      'position:absolute', 'top:-32px', 'right:8px', 'z-index:99999',
+      'box-shadow:0 2px 8px rgba(37,99,235,.35)', 'line-height:1'
+    ].join(';');
+
+    btn.addEventListener('mouseenter', () => { btn.style.background = '#1D4ED8'; });
+    btn.addEventListener('mouseleave', () => { btn.style.background = '#2563EB'; });
+
+    btn.addEventListener('click', e => {
+      e.preventDefault(); e.stopPropagation();
+      const msg = getComposedMessage();
+      if (!msg) {
+        alert('No message ready in RecruitFlow. Generate or write a message in the sidebar first.');
+        return;
+      }
+      composeBox.focus();
+      // Try execCommand first, then innerHTML fallback
+      composeBox.innerHTML = '';
+      const ok = document.execCommand('insertText', false, msg);
+      if (!ok || !composeBox.innerText?.trim()) {
+        composeBox.innerHTML = msg.replace(/\n/g, '<br>');
+        composeBox.dispatchEvent(new Event('input',  { bubbles: true }));
+        composeBox.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      btn.innerHTML = '✓ Inserted!';
+      btn.style.background = '#059669';
+      setTimeout(() => {
+        btn.innerHTML = `<img src="${chrome.runtime.getURL('assets/icon16.png')}" width="12" height="12" style="vertical-align:middle;margin-right:4px;">RF Insert`;
+        btn.style.background = '#2563EB';
+      }, 2000);
+    });
+
+    // Position relative parent
+    const pos = window.getComputedStyle(container).position;
+    if (pos === 'static') container.style.position = 'relative';
+    container.appendChild(btn);
+  }
+
+  // Watch for compose boxes appearing anywhere on the page (chat overlays, messaging page)
+  new MutationObserver(() => {
+    const composers = document.querySelectorAll(
+      '.msg-form__contenteditable, [class*="msg-form"][contenteditable="true"], [placeholder="Write a message…"], [placeholder="Write a message..."], [data-placeholder][contenteditable="true"]'
+    );
+    composers.forEach(box => injectChatButton(box));
+  }).observe(document.body, { subtree: true, childList: true });
+
   // ── Force inject from popup (Step 4) ─────────────────────────────────────
   window.addEventListener('rf-force-inject', () => {
     if (!document.getElementById('recruitflow-sidebar-container')) {
