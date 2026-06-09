@@ -534,22 +534,27 @@
 
   function typeIntoBox(box, text) {
     box.focus();
-    box.innerHTML = '';
-    const ok = document.execCommand('insertText', false, text);
-    if (!ok || !box.innerText?.trim()) {
-      box.innerHTML = text.replace(/\n/g, '<br>');
-      box.dispatchEvent(new Event('input',  { bubbles: true }));
+    // Clear existing content
+    document.execCommand('selectAll', false, null);
+    document.execCommand('delete', false, null);
+    // Insert text — triggers React synthetic events
+    const inserted = document.execCommand('insertText', false, text);
+    if (!inserted || !box.innerText?.trim()) {
+      // Fallback: set innerHTML and fire all relevant events
+      box.innerHTML = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\n/g, '<br>');
+      box.dispatchEvent(new InputEvent('input',  { bubbles: true, composed: true, inputType: 'insertText', data: text }));
       box.dispatchEvent(new Event('change', { bubbles: true }));
+      box.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
     }
   }
 
   function clickLinkedInSend() {
     const btn =
       document.querySelector('.msg-form__send-button:not([disabled])') ||
-      document.querySelector('button.msg-form__send-button') ||
+      document.querySelector('[data-control-name="send"]:not([disabled])') ||
       Array.from(document.querySelectorAll('button:not([disabled])')).find(b => {
-        const t = (b.getAttribute('aria-label') || b.innerText || '').toLowerCase().trim();
-        return t === 'send' || t === 'send message';
+        const label = (b.getAttribute('aria-label') || b.textContent || '').toLowerCase().trim();
+        return (label === 'send' || label === 'send message') && b.offsetParent !== null;
       });
     if (btn) { btn.click(); return true; }
     return false;
@@ -707,9 +712,15 @@
 
         const msg = buildQuickMessage(jd, recruiterName, recruiterCompany);
         typeIntoBox(composer, msg);
-        await new Promise(r => setTimeout(r, 700));
 
-        const sent = clickLinkedInSend();
+        // Retry clicking Send until LinkedIn's React state enables the button (up to 3s)
+        let sent = false;
+        for (let i = 0; i < 15; i++) {
+          await new Promise(r => setTimeout(r, 200));
+          sent = clickLinkedInSend();
+          if (sent) break;
+        }
+
         sendBtn.textContent      = sent ? '✓ Sent!' : '✓ Typed — press Enter';
         sendBtn.style.background = '#059669';
         setTimeout(() => popup.remove(), 1400);

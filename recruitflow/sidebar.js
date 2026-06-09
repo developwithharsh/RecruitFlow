@@ -872,10 +872,10 @@
 
     // Save message to active JD
     document.getElementById('rf-save-to-jd-btn')?.addEventListener('click', async () => {
-      const activeSubTab = document.querySelector('.rf-sub-tab-btn.active')?.dataset.sub || 'template';
-      const msgText = activeSubTab === 'ai'
-        ? document.getElementById('rf-ai-message-text')?.value?.trim()
-        : document.getElementById('rf-message-preview')?.value?.trim();
+      // Pick whichever text area has content (AI output takes priority if filled)
+      const aiText  = document.getElementById('rf-ai-message-text')?.value?.trim();
+      const tplText = document.getElementById('rf-message-preview')?.value?.trim();
+      const msgText = aiText || tplText;
 
       if (!msgText) { showToast('Write or generate a message first', 'warning'); return; }
 
