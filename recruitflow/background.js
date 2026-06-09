@@ -56,9 +56,9 @@ chrome.runtime.onInstalled.addListener(async (details) => {
       await chrome.storage.local.set({
         recruitflow_usage: {
           ai_uses_total: 0,
-          ai_uses_limit: 3,
+          free_messages_sent: 0,
           daily_messages_sent: 0,
-          daily_limit: 50,
+          daily_limit: 20,
           last_reset_date: new Date().toDateString(),
           is_pro: false
         },
@@ -121,9 +121,9 @@ async function getUsage() {
     const result = await chrome.storage.local.get('recruitflow_usage');
     return result.recruitflow_usage || {
       ai_uses_total: 0,
-      ai_uses_limit: 3,
+      free_messages_sent: 0,
       daily_messages_sent: 0,
-      daily_limit: 50,
+      daily_limit: 20,
       last_reset_date: new Date().toDateString(),
       is_pro: false
     };

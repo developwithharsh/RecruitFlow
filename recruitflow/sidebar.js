@@ -312,10 +312,17 @@
   }
 
   // ── Limit guard helpers ──────────────────────────────────────────────────
+  const FREE_AI_LIMIT  = 3;
+  const FREE_MSG_LIMIT = 3;
+
   async function getUsage() {
     return (await storageGet('recruitflow_usage')) || {
-      ai_uses_total: 0, daily_messages_sent: 0, daily_limit: 50,
-      last_reset_date: new Date().toDateString(), is_pro: false
+      ai_uses_total: 0,
+      free_messages_sent: 0,
+      daily_messages_sent: 0,
+      daily_limit: 20,
+      last_reset_date: new Date().toDateString(),
+      is_pro: false
     };
   }
 
@@ -329,28 +336,62 @@
     return usage;
   }
 
+  // Returns { blocked, reason, isLastFree, isLastPro, count, limit, isPro }
   async function getLimitStatus() {
     const usage = await checkAndResetDay();
+    const isPro = usage.is_pro || false;
+
+    if (!isPro) {
+      const sent = usage.free_messages_sent || 0;
+      const blocked = sent >= FREE_MSG_LIMIT;
+      return {
+        isPro: false, blocked,
+        reason: blocked ? `free_limit` : 'ok',
+        count: sent, limit: FREE_MSG_LIMIT,
+        isLastFree: sent === FREE_MSG_LIMIT - 1
+      };
+    }
+
+    // Pro — daily limit
     const count = usage.daily_messages_sent || 0;
-    const limit = usage.daily_limit || 50;
-    const pct   = Math.round((count / limit) * 100);
-    return { count, limit, pct, level: pct >= 100 ? 'danger' : pct >= 80 ? 'warning' : 'safe' };
+    const limit = usage.daily_limit || 20;
+    const blocked = count >= limit;
+    return {
+      isPro: true, blocked,
+      reason: blocked ? 'daily_limit' : 'ok',
+      count, limit,
+      isLastPro: count === limit - 1
+    };
   }
 
-  async function incrementDailyCount() {
+  async function incrementMessageCount() {
     const usage = await checkAndResetDay();
-    usage.daily_messages_sent = (usage.daily_messages_sent || 0) + 1;
+    if (!usage.is_pro) {
+      usage.free_messages_sent = (usage.free_messages_sent || 0) + 1;
+    } else {
+      usage.daily_messages_sent = (usage.daily_messages_sent || 0) + 1;
+    }
     await storageSet({ recruitflow_usage: usage });
+    return usage;
   }
+
+  // Legacy alias
+  async function incrementDailyCount() { return incrementMessageCount(); }
 
   async function canUseAI() {
     const usage = await getUsage();
-    return usage.is_pro || (usage.ai_uses_total || 0) < 3;
+    if (usage.is_pro) return true;
+    // Free users: blocked if they've hit message limit OR AI limit
+    const msgBlocked = (usage.free_messages_sent || 0) >= FREE_MSG_LIMIT;
+    const aiBlocked  = (usage.ai_uses_total || 0) >= FREE_AI_LIMIT;
+    return !msgBlocked && !aiBlocked;
   }
 
   async function getAIUsesLeft() {
     const usage = await getUsage();
-    return usage.is_pro ? '∞' : Math.max(0, 3 - (usage.ai_uses_total || 0));
+    if (usage.is_pro) return '∞';
+    if ((usage.free_messages_sent || 0) >= FREE_MSG_LIMIT) return 0;
+    return Math.max(0, FREE_AI_LIMIT - (usage.ai_uses_total || 0));
   }
 
   // ── Sidebar state ────────────────────────────────────────────────────────
@@ -387,15 +428,23 @@
 
   // ── Limit bar refresh ────────────────────────────────────────────────────
   async function refreshLimitBar() {
-    const s = await getLimitStatus();
+    const s    = await getLimitStatus();
     const lbl  = document.getElementById('rf-limit-count');
     const max  = document.getElementById('rf-limit-max');
     const fill = document.getElementById('rf-limit-bar-fill');
-    if (lbl)  lbl.textContent  = s.count;
-    if (max)  max.textContent  = s.limit;
+    if (lbl) lbl.textContent = s.count;
+    if (max) max.textContent = s.limit;
+    const pct = Math.round((s.count / s.limit) * 100);
     if (fill) {
-      fill.style.width = Math.min(100, s.pct) + '%';
-      fill.className   = 'rf-limit-bar-fill' + (s.level === 'danger' ? ' danger' : s.level === 'warning' ? ' warning' : '');
+      fill.style.width = Math.min(100, pct) + '%';
+      fill.className = 'rf-limit-bar-fill' + (s.blocked ? ' danger' : pct >= 80 ? ' warning' : '');
+    }
+    // Update label to reflect free vs pro
+    const barLabel = document.getElementById('rf-limit-bar-label');
+    if (barLabel) {
+      barLabel.textContent = s.isPro
+        ? `${s.count} / ${s.limit} messages today`
+        : `${s.count} / ${s.limit} free messages used`;
     }
   }
 
@@ -835,10 +884,14 @@
 
       if (!msgText) { showToast('Write or generate a message first', 'warning'); return; }
 
-      // Enforce daily limit before sending
+      // Enforce limits before sending
       const limitStatus = await getLimitStatus();
-      if (limitStatus.level === 'danger') {
-        showToast(`Daily limit of ${limitStatus.limit} messages reached. Resume tomorrow to protect your account.`, 'warning');
+      if (limitStatus.blocked) {
+        if (!limitStatus.isPro) {
+          showUpgradeOverlay();
+        } else {
+          showToast(`Daily limit of ${limitStatus.limit} messages reached. Resume tomorrow to protect your account.`, 'warning');
+        }
         return;
       }
 
@@ -860,9 +913,22 @@
           candidateRole: currentProfile?.role || '', candidateCompany: currentProfile?.company || '',
           jdTitle: jd?.title || '', messageSent: msgText, sentAt: new Date().toISOString()
         });
-        await incrementDailyCount();
+        await incrementMessageCount();
         await refreshLimitBar();
-        showToast(`Sent to ${currentProfile?.name || 'candidate'}!`, 'success');
+        await refreshAIBadge();
+
+        // Post-send limit check for warnings
+        const afterStatus = await getLimitStatus();
+        if (afterStatus.blocked && afterStatus.isPro) {
+          showToast(`You've reached your daily limit of ${afterStatus.limit} messages. Great work! Resume tomorrow.`, 'warning');
+        } else if (afterStatus.blocked && !afterStatus.isPro) {
+          showToast(`Sent! You've used all ${FREE_MSG_LIMIT} free messages. Upgrade to Pro for unlimited.`, 'warning');
+          setTimeout(() => showUpgradeOverlay(), 1500);
+        } else if (afterStatus.isLastPro) {
+          showToast(`Sent! 1 message left for today (${afterStatus.limit} daily limit).`, 'warning');
+        } else {
+          showToast(`Sent to ${currentProfile?.name || 'candidate'}!`, 'success');
+        }
         document.getElementById('rf-message-preview').value  = '';
         document.getElementById('rf-ai-message-text').value  = '';
         document.getElementById('rf-ai-message-wrap').style.display = 'none';
