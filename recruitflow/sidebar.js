@@ -890,7 +890,7 @@
         const idx = jds.findIndex(j => j.id === jd.id);
         if (idx === -1) throw new Error('JD not found');
         jds[idx].savedMessage = msgText;
-        await storageSet('recruitflow_jds', jds);
+        await storageSet({ recruitflow_jds: jds });
         showToast(`Message saved to "${jd.title}"`, 'success');
       } catch (e) {
         showToast(e.message || 'Could not save message', 'error');
