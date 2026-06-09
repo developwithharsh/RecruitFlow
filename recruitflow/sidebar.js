@@ -330,6 +330,7 @@
     const usage = await getUsage();
     if (usage.last_reset_date !== new Date().toDateString()) {
       usage.daily_messages_sent = 0;
+      usage.free_messages_sent = 0;  // free tier resets daily too
       usage.last_reset_date = new Date().toDateString();
       await storageSet({ recruitflow_usage: usage });
     }
@@ -342,7 +343,8 @@
     const isPro = usage.is_pro || false;
 
     if (!isPro) {
-      const sent = usage.free_messages_sent || 0;
+      // Free users get 3 messages per day (resets at midnight)
+      const sent = usage.daily_messages_sent || 0;
       const blocked = sent >= FREE_MSG_LIMIT;
       return {
         isPro: false, blocked,
@@ -366,11 +368,8 @@
 
   async function incrementMessageCount() {
     const usage = await checkAndResetDay();
-    if (!usage.is_pro) {
-      usage.free_messages_sent = (usage.free_messages_sent || 0) + 1;
-    } else {
-      usage.daily_messages_sent = (usage.daily_messages_sent || 0) + 1;
-    }
+    // Both free and pro use daily_messages_sent (resets each day)
+    usage.daily_messages_sent = (usage.daily_messages_sent || 0) + 1;
     await storageSet({ recruitflow_usage: usage });
     return usage;
   }
@@ -379,18 +378,18 @@
   async function incrementDailyCount() { return incrementMessageCount(); }
 
   async function canUseAI() {
-    const usage = await getUsage();
+    const usage = await checkAndResetDay();
     if (usage.is_pro) return true;
-    // Free users: blocked if they've hit message limit OR AI limit
-    const msgBlocked = (usage.free_messages_sent || 0) >= FREE_MSG_LIMIT;
+    // Free users: blocked if they've hit daily message limit OR AI limit
+    const msgBlocked = (usage.daily_messages_sent || 0) >= FREE_MSG_LIMIT;
     const aiBlocked  = (usage.ai_uses_total || 0) >= FREE_AI_LIMIT;
     return !msgBlocked && !aiBlocked;
   }
 
   async function getAIUsesLeft() {
-    const usage = await getUsage();
+    const usage = await checkAndResetDay();
     if (usage.is_pro) return '∞';
-    if ((usage.free_messages_sent || 0) >= FREE_MSG_LIMIT) return 0;
+    if ((usage.daily_messages_sent || 0) >= FREE_MSG_LIMIT) return 0;
     return Math.max(0, FREE_AI_LIMIT - (usage.ai_uses_total || 0));
   }
 
@@ -922,7 +921,7 @@
         if (afterStatus.blocked && afterStatus.isPro) {
           showToast(`You've reached your daily limit of ${afterStatus.limit} messages. Great work! Resume tomorrow.`, 'warning');
         } else if (afterStatus.blocked && !afterStatus.isPro) {
-          showToast(`Sent! You've used all ${FREE_MSG_LIMIT} free messages. Upgrade to Pro for unlimited.`, 'warning');
+          showToast(`Sent! You've used all ${FREE_MSG_LIMIT} free messages for today. Resets tomorrow or upgrade to Pro.`, 'warning');
           setTimeout(() => showUpgradeOverlay(), 1500);
         } else if (afterStatus.isLastPro) {
           showToast(`Sent! 1 message left for today (${afterStatus.limit} daily limit).`, 'warning');
