@@ -1179,3 +1179,21 @@
   letter-spacing: 8px !important;
   font-weight: 700 !important;
 }
+
+/* ── JD Cards ────────────────────────────────────────────────────────────── */
+#rf-jd-form-section {
+  flex-shrink: 0 !important;
+}
+
+#rf-jd-cards {
+  flex: 1 !important;
+}
+
+#rf-jd-cards .rf-jd-edit-btn:hover {
+  background: #E2E8F0 !important;
+}
+
+#rf-jd-cards .rf-jd-del-btn:hover {
+  background: #FEF2F2 !important;
+  border-color: #DC2626 !important;
+}

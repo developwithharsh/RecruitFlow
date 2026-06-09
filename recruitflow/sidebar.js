@@ -424,20 +424,91 @@
     fillAndPreview();
   }
 
-  async function refreshJDSelect() {
-    const sel = document.getElementById('rf-jd-select');
-    if (!sel) return;
-    const [jds, active] = await Promise.all([getAllJDs(), getActiveJD()]);
-    sel.innerHTML = `<option value="">— No JD selected —</option>` +
-      jds.map(j => `<option value="${j.id}" ${active && active.id === j.id ? 'selected' : ''}>${j.title}</option>`).join('');
+  async function renderJDCards() {
+    const cardsEl = document.getElementById('rf-jd-cards');
+    if (!cardsEl) return;
+    const [jds, activeId] = await Promise.all([getAllJDs(), storageGet('recruitflow_active_jd')]);
 
-    const titleEl = document.getElementById('rf-jd-title');
-    const textEl  = document.getElementById('rf-jd-text');
+    if (!jds.length) {
+      cardsEl.innerHTML = `
+        <div style="text-align:center;padding:20px 12px;color:#94A3B8;font-size:12px;">
+          <div style="font-size:26px;margin-bottom:6px;">📋</div>
+          No JDs saved yet. Fill the form above and click Save JD.
+        </div>`;
+      return;
+    }
+
+    cardsEl.innerHTML = '';
+    jds.forEach(jd => {
+      const isActive = jd.id === activeId;
+      const snippet  = (jd.text || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+
+      const card = document.createElement('div');
+      card.style.cssText = [
+        'background:' + (isActive ? '#EFF6FF' : '#FFFFFF'),
+        'border:2px solid ' + (isActive ? '#2563EB' : '#E2E8F0'),
+        'border-radius:12px', 'padding:12px', 'margin-bottom:8px',
+        'cursor:pointer', 'transition:box-shadow .15s,border-color .15s'
+      ].join(';');
+
+      card.innerHTML = `
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin-bottom:5px;">
+          <span style="font-weight:700;font-size:13px;color:#0F172A;line-height:1.3;flex:1;">${jd.title || 'Untitled JD'}</span>
+          ${isActive
+            ? '<span style="font-size:9px;background:#2563EB;color:#fff;padding:2px 8px;border-radius:10px;flex-shrink:0;font-weight:600;letter-spacing:.3px;">ACTIVE</span>'
+            : '<span class="rf-jd-set-active" style="font-size:10px;color:#2563EB;cursor:pointer;flex-shrink:0;font-weight:600;text-decoration:underline;">Set Active</span>'
+          }
+        </div>
+        ${snippet ? `<div style="font-size:11px;color:#64748B;line-height:1.5;margin-bottom:10px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${snippet}…</div>` : ''}
+        <div style="display:flex;gap:6px;">
+          <button class="rf-jd-edit-btn rf-btn-secondary rf-btn-sm" style="flex:1;font-size:11px;">✏ Edit</button>
+          <button class="rf-jd-del-btn rf-btn-secondary rf-btn-sm" style="flex:1;font-size:11px;color:#DC2626;border-color:#FCA5A5;">🗑 Delete</button>
+        </div>
+      `;
+
+      card.addEventListener('mouseenter', () => { if (!isActive) card.style.borderColor = '#93C5FD'; card.style.boxShadow = '0 2px 10px rgba(0,0,0,.08)'; });
+      card.addEventListener('mouseleave', () => { card.style.borderColor = isActive ? '#2563EB' : '#E2E8F0'; card.style.boxShadow = 'none'; });
+
+      // Set active
+      card.querySelector('.rf-jd-set-active')?.addEventListener('click', async e => {
+        e.stopPropagation();
+        await storageSet({ recruitflow_active_jd: jd.id });
+        await renderJDCards();
+        fillAndPreview();
+        showToast(`"${jd.title}" set as active JD`, 'success');
+      });
+
+      // Edit — load into form
+      card.querySelector('.rf-jd-edit-btn').addEventListener('click', e => {
+        e.stopPropagation();
+        document.getElementById('rf-jd-title').value = jd.title;
+        document.getElementById('rf-jd-text').value  = jd.text;
+        document.getElementById('rf-jd-save-btn').dataset.editId = jd.id;
+        document.getElementById('rf-jd-form-cancel').style.display = '';
+        document.querySelector('#rf-jd-form-section label.rf-label').textContent = 'Edit Job Description';
+        document.getElementById('rf-jd-title').focus();
+        document.getElementById('rf-jd-form-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+
+      // Delete
+      card.querySelector('.rf-jd-del-btn').addEventListener('click', async e => {
+        e.stopPropagation();
+        if (!confirm(`Delete "${jd.title}"?`)) return;
+        let jdList = await getAllJDs();
+        jdList = jdList.filter(j => j.id !== jd.id);
+        await storageSet({ recruitflow_jds: jdList });
+        if (isActive && jdList.length) await storageSet({ recruitflow_active_jd: jdList[0].id });
+        await renderJDCards();
+        showToast('JD deleted', 'success');
+      });
+
+      cardsEl.appendChild(card);
+    });
+
+    // Update role colour for active JD
+    const active = jds.find(j => j.id === activeId);
     if (active) {
-      if (titleEl) titleEl.value = active.title;
-      if (textEl)  textEl.value  = active.text;
-      const cont = document.getElementById('recruitflow-sidebar-container');
-      if (cont) cont.setAttribute('data-role', active.roleCategory || 'tech');
+      document.getElementById('recruitflow-sidebar-container')?.setAttribute('data-role', active.roleCategory || 'tech');
     }
   }
 
@@ -578,41 +649,52 @@
   }
 
   // ── Event wiring ─────────────────────────────────────────────────────────
+  function resetJDForm() {
+    document.getElementById('rf-jd-title').value = '';
+    document.getElementById('rf-jd-text').value  = '';
+    delete document.getElementById('rf-jd-save-btn').dataset.editId;
+    document.getElementById('rf-jd-form-cancel').style.display = 'none';
+    document.getElementById('rf-optimized-section').style.display = 'none';
+    const lbl = document.querySelector('#rf-jd-form-section label.rf-label');
+    if (lbl) lbl.textContent = 'New Job Description';
+  }
+
   function wireJDTab() {
-    // JD select
-    document.getElementById('rf-jd-select')?.addEventListener('change', async e => {
-      const id = e.target.value;
-      if (!id) return;
-      await setActiveJD(id);
-      const jds = await getAllJDs();
-      const jd  = jds.find(j => j.id === id);
-      if (jd) {
-        document.getElementById('rf-jd-title').value = jd.title;
-        document.getElementById('rf-jd-text').value  = jd.text;
-        document.getElementById('rf-optimized-section').style.display = 'none';
-        document.getElementById('recruitflow-sidebar-container')
-          ?.setAttribute('data-role', jd.roleCategory || 'tech');
-      }
-    });
-
-    // New JD
+    // New JD button — scroll to form and clear it
     document.getElementById('rf-jd-new-btn')?.addEventListener('click', () => {
-      document.getElementById('rf-jd-title').value = '';
-      document.getElementById('rf-jd-text').value  = '';
-      document.getElementById('rf-jd-select').value = '';
-      document.getElementById('rf-optimized-section').style.display = 'none';
+      resetJDForm();
       document.getElementById('rf-jd-title').focus();
+      document.getElementById('rf-jd-form-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
 
-    // Save JD
+    // Cancel edit
+    document.getElementById('rf-jd-form-cancel')?.addEventListener('click', resetJDForm);
+
+    // Save JD (handles both new + edit)
     document.getElementById('rf-jd-save-btn')?.addEventListener('click', async () => {
-      const title = document.getElementById('rf-jd-title')?.value.trim();
-      const text  = document.getElementById('rf-jd-text')?.value.trim();
+      const title  = document.getElementById('rf-jd-title')?.value.trim();
+      const text   = document.getElementById('rf-jd-text')?.value.trim();
+      const editId = document.getElementById('rf-jd-save-btn').dataset.editId;
       if (!title || !text) { showToast('Enter a title and JD text', 'warning'); return; }
-      const jd = await saveJD(title, text);
-      await refreshJDSelect();
-      document.getElementById('recruitflow-sidebar-container')?.setAttribute('data-role', jd.roleCategory);
-      showToast('JD saved!', 'success');
+
+      if (editId) {
+        // Update existing JD
+        let jdList = await getAllJDs();
+        const idx  = jdList.findIndex(j => j.id === editId);
+        if (idx > -1) {
+          jdList[idx] = { ...jdList[idx], title, text, roleCategory: detectRoleCategory(text) };
+          await storageSet({ recruitflow_jds: jdList });
+        }
+        showToast('JD updated!', 'success');
+      } else {
+        // New JD
+        const jd = await saveJD(title, text);
+        document.getElementById('recruitflow-sidebar-container')?.setAttribute('data-role', jd.roleCategory);
+        showToast('JD saved!', 'success');
+      }
+      resetJDForm();
+      await renderJDCards();
+      fillAndPreview();
     });
 
     // Optimize JD
@@ -1068,7 +1150,7 @@
     wireSettingsTab();
 
     await Promise.all([
-      refreshJDSelect(),
+      renderJDCards(),
       refreshTemplateSelect(),
       refreshAIBadge(),
       refreshLimitBar()

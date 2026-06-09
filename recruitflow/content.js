@@ -190,49 +190,56 @@
   <!-- ── JD PANEL ── -->
   <div class="rf-panel" id="rf-panel-jd">
     <div class="rf-panel-scroll">
-      <div class="rf-section">
-        <label class="rf-label">Active JD</label>
-        <div style="display:flex;gap:6px;">
-          <select id="rf-jd-select" class="rf-select" style="flex:1;"></select>
-          <button id="rf-jd-new-btn" class="rf-icon-btn" style="width:34px;height:36px;font-size:18px;border-radius:8px !important;flex-shrink:0;">+</button>
+
+      <!-- Add / Edit form -->
+      <div id="rf-jd-form-section" style="background:#F8FAFC;border-bottom:1px solid #E2E8F0;padding:14px 14px 12px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <label class="rf-label" style="margin:0;">New Job Description</label>
+          <button id="rf-jd-form-cancel" class="rf-btn-secondary rf-btn-sm" style="display:none;padding:3px 10px;font-size:10px;">✕ Cancel</button>
         </div>
-      </div>
-      <div class="rf-section">
-        <label class="rf-label">JD Title</label>
-        <input id="rf-jd-title" class="rf-input" type="text" placeholder="e.g. Senior React Developer — Pune">
-      </div>
-      <div class="rf-section">
-        <label class="rf-label">Job Description</label>
-        <textarea id="rf-jd-text" class="rf-textarea" rows="7" placeholder="Paste your job description here…"></textarea>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:9px;">
-        <button id="rf-pdf-upload-btn" class="rf-btn-secondary rf-btn-sm">📎 Upload PDF</button>
-        <button id="rf-jd-save-btn"    class="rf-btn-secondary rf-btn-sm">💾 Save JD</button>
-        <input id="rf-pdf-input" type="file" accept=".pdf" style="display:none !important;">
-        <span id="rf-pdf-status" style="font-size:10px;color:#059669;grid-column:1/-1;"></span>
-      </div>
-      <button id="rf-jd-optimize-btn" class="rf-btn-ai">
-        ✦ Optimize with AI <span class="rf-ai-uses-badge"></span>
-      </button>
-      <div id="rf-optimized-section" style="display:none;margin-top:12px;">
-        <div class="rf-divider"></div>
-        <label class="rf-label">AI-optimized version</label>
+        <div style="margin-bottom:8px;">
+          <input id="rf-jd-title" class="rf-input" type="text" placeholder="Job Title  e.g. Senior React Developer">
+        </div>
+        <div style="margin-bottom:8px;">
+          <textarea id="rf-jd-text" class="rf-textarea" rows="5" placeholder="Paste your job description here…"></textarea>
+        </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:8px;">
-          <div>
-            <div style="font-size:9px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">Original</div>
-            <div id="rf-jd-original-preview" style="font-size:11px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:7px;padding:7px;max-height:110px;overflow-y:auto;white-space:pre-wrap;line-height:1.4;color:#0F172A;"></div>
-          </div>
-          <div>
-            <div style="font-size:9px;font-weight:700;color:#7C3AED;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">Optimized ✦</div>
-            <div id="rf-jd-optimized-preview" style="font-size:11px;background:#F5F3FF;border:1px solid #C4B5FD;border-radius:7px;padding:7px;max-height:110px;overflow-y:auto;white-space:pre-wrap;line-height:1.4;color:#0F172A;"></div>
-          </div>
+          <button id="rf-pdf-upload-btn" class="rf-btn-secondary rf-btn-sm">📎 Upload PDF</button>
+          <button id="rf-jd-save-btn" class="rf-btn-primary rf-btn-sm">💾 Save JD</button>
+          <input id="rf-pdf-input" type="file" accept=".pdf" style="display:none !important;">
+          <span id="rf-pdf-status" style="font-size:10px;color:#059669;grid-column:1/-1;"></span>
         </div>
-        <input type="hidden" id="rf-pending-optimized">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;">
-          <button id="rf-jd-accept-btn" class="rf-btn-primary rf-btn-sm">✓ Accept</button>
-          <button id="rf-jd-reject-btn" class="rf-btn-secondary rf-btn-sm">✕ Reject</button>
+        <button id="rf-jd-optimize-btn" class="rf-btn-ai" style="margin-bottom:0;">
+          ✦ Optimize with AI <span class="rf-ai-uses-badge"></span>
+        </button>
+        <div id="rf-optimized-section" style="display:none;margin-top:10px;">
+          <div class="rf-divider"></div>
+          <label class="rf-label">AI-optimized version</label>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:8px;">
+            <div>
+              <div style="font-size:9px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">Original</div>
+              <div id="rf-jd-original-preview" style="font-size:11px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:7px;padding:7px;max-height:90px;overflow-y:auto;white-space:pre-wrap;line-height:1.4;color:#0F172A;"></div>
+            </div>
+            <div>
+              <div style="font-size:9px;font-weight:700;color:#7C3AED;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">Optimized ✦</div>
+              <div id="rf-jd-optimized-preview" style="font-size:11px;background:#F5F3FF;border:1px solid #C4B5FD;border-radius:7px;padding:7px;max-height:90px;overflow-y:auto;white-space:pre-wrap;line-height:1.4;color:#0F172A;"></div>
+            </div>
+          </div>
+          <input type="hidden" id="rf-pending-optimized">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;">
+            <button id="rf-jd-accept-btn" class="rf-btn-primary rf-btn-sm">✓ Accept</button>
+            <button id="rf-jd-reject-btn" class="rf-btn-secondary rf-btn-sm">✕ Reject</button>
+          </div>
         </div>
       </div>
+
+      <!-- Saved JD Cards -->
+      <div style="padding:12px 12px 6px;display:flex;align-items:center;justify-content:space-between;">
+        <label class="rf-label" style="margin:0;">Saved Jobs</label>
+        <button id="rf-jd-new-btn" class="rf-btn-primary rf-btn-sm" style="padding:4px 12px;font-size:11px;">+ New JD</button>
+      </div>
+      <div id="rf-jd-cards" style="padding:0 12px 12px;"></div>
+
     </div>
   </div>
 
