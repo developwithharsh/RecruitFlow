@@ -565,15 +565,17 @@
   async function buildCardPopup(anchorBtn) {
     document.getElementById('rf-card-popup')?.remove();
 
-    const [jdsRaw, activeIdRaw, settingsRaw] = await Promise.all([
-      new Promise(r => chrome.storage.local.get('recruitflow_jds',       d => r(d.recruitflow_jds))),
-      new Promise(r => chrome.storage.local.get('recruitflow_active_jd', d => r(d.recruitflow_active_jd))),
-      new Promise(r => chrome.storage.local.get('recruitflow_settings',  d => r(d.recruitflow_settings)))
+    const [jdsRaw, activeIdRaw, settingsRaw, templatesRaw] = await Promise.all([
+      new Promise(r => chrome.storage.local.get('recruitflow_jds',        d => r(d.recruitflow_jds))),
+      new Promise(r => chrome.storage.local.get('recruitflow_active_jd',  d => r(d.recruitflow_active_jd))),
+      new Promise(r => chrome.storage.local.get('recruitflow_settings',   d => r(d.recruitflow_settings))),
+      new Promise(r => chrome.storage.local.get('recruitflow_templates',  d => r(d.recruitflow_templates)))
     ]);
 
-    const jds      = jdsRaw    || [];
+    const jds      = jdsRaw      || [];
     const activeId = activeIdRaw || null;
     const settings = settingsRaw || {};
+    const templates = templatesRaw || [];
     const recruiterName    = settings.recruiter_name    || 'Recruiter';
     const recruiterCompany = settings.recruiter_company || '';
 
@@ -589,20 +591,25 @@
       'border:1px solid #E2E8F0', 'overflow:hidden'
     ].join(';');
 
-    // Position above the anchor button
+    // Position above the anchor button, clamped to viewport
     const r    = anchorBtn.getBoundingClientRect();
-    const top  = Math.max(8, r.top - 450);
-    const left = Math.max(8, r.right - 300);
+    const popH = 460;
+    const popW = 300;
+    let top  = r.top - popH - 8;
+    let left = r.left;
+    if (top < 8) top = r.bottom + 8;               // flip below if no room above
+    if (left + popW > window.innerWidth - 8) left = window.innerWidth - popW - 8;
+    if (left < 8) left = 8;
     popup.style.top  = top  + 'px';
     popup.style.left = left + 'px';
 
     popup.innerHTML = `
-      <div style="padding:13px 14px 10px;border-bottom:1px solid #E2E8F0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:#F8FAFC;">
+      <div style="padding:12px 14px 10px;border-bottom:1px solid #E2E8F0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:#F8FAFC;">
         <div style="display:flex;align-items:center;gap:8px;">
-          <div style="background:#2563EB;color:#fff;width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;letter-spacing:-.5px;">RF</div>
+          <div style="background:#2563EB;color:#fff;width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;letter-spacing:-.5px;">RF</div>
           <div>
-            <div style="font-weight:700;font-size:13px;color:#0F172A;line-height:1.1;">Quick Send</div>
-            <div style="font-size:10px;color:#64748B;">Select a job to send message</div>
+            <div style="font-weight:700;font-size:13px;color:#0F172A;line-height:1.2;">Quick Send</div>
+            <div style="font-size:10px;color:#64748B;">Pick a JD — message sends instantly</div>
           </div>
         </div>
         <button id="rf-popup-close" style="background:none;border:none;font-size:18px;cursor:pointer;color:#94A3B8;line-height:1;padding:0 2px;">✕</button>
@@ -637,21 +644,32 @@
 
     jds.forEach(jd => {
       const isActive = jd.id === activeId;
-      const snippet  = (jd.text || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+      const jdSnippet = (jd.text || '').replace(/\s+/g, ' ').trim().slice(0, 70);
+      // Build the quick message for preview
+      const quickMsg = buildQuickMessage(jd, recruiterName, recruiterCompany);
+      const msgPreview = quickMsg.replace(/\s+/g, ' ').trim().slice(0, 100);
+      // Find a matching saved template name if any
+      const templateLabel = templates.length
+        ? (templates[0].name || 'Template')
+        : 'Quick Message';
 
       const card = document.createElement('div');
       card.style.cssText = [
         'background:' + (isActive ? '#EFF6FF' : '#F8FAFC'),
         'border:2px solid ' + (isActive ? '#2563EB' : '#E2E8F0'),
-        'border-radius:10px', 'padding:11px 12px 10px', 'margin-bottom:6px', 'cursor:pointer'
+        'border-radius:10px', 'padding:11px 12px 10px', 'margin-bottom:6px'
       ].join(';');
 
       card.innerHTML = `
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin-bottom:5px;">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin-bottom:4px;">
           <span style="font-weight:700;font-size:12px;color:#0F172A;line-height:1.3;flex:1;">${jd.title || 'Untitled JD'}</span>
           ${isActive ? '<span style="font-size:9px;background:#2563EB;color:#fff;padding:2px 6px;border-radius:8px;flex-shrink:0;font-weight:600;">ACTIVE</span>' : ''}
         </div>
-        ${snippet ? `<div style="font-size:10px;color:#64748B;line-height:1.4;margin-bottom:8px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${snippet}…</div>` : ''}
+        ${jdSnippet ? `<div style="font-size:10px;color:#94A3B8;line-height:1.4;margin-bottom:6px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;">${jdSnippet}…</div>` : ''}
+        <div style="background:#fff;border:1px solid #E2E8F0;border-radius:7px;padding:8px 10px;margin-bottom:8px;">
+          <div style="font-size:9px;font-weight:700;color:#2563EB;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">${templateLabel}</div>
+          <div style="font-size:11px;color:#475569;line-height:1.5;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;">${msgPreview}…</div>
+        </div>
         <button class="rf-send-now-btn" style="width:100%;background:#2563EB;color:#fff;border:none;border-radius:7px;padding:8px 0;font-size:12px;font-weight:600;cursor:pointer;letter-spacing:.2px;">
           ✦ Send Message
         </button>
@@ -695,71 +713,54 @@
     });
   }
 
-  // ── Create the fixed floating RF button ──────────────────────────────────
-  function createFloatingRFButton() {
-    if (document.getElementById('rf-float-btn')) return;
+  // ── Inject RF button into each LinkedIn chat toolbar ─────────────────────
+  function injectRFButtonIntoToolbar(toolbar) {
+    if (toolbar.querySelector('.rf-toolbar-btn')) return;
 
     const btn = document.createElement('button');
-    btn.id = 'rf-float-btn';
+    btn.className = 'rf-toolbar-btn';
+    btn.title = 'RecruitFlow Quick Send';
     btn.innerHTML = `
-      <div style="font-weight:800;font-size:11px;letter-spacing:-.5px;line-height:1;">RF</div>
-      <div style="font-size:9px;font-weight:600;margin-top:2px;opacity:.9;letter-spacing:.2px;">SEND</div>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="margin-right:3px;vertical-align:middle;">
+        <path d="M22 2L11 13" stroke="#2563EB" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M22 2L15 22 11 13 2 9l20-7z" stroke="#2563EB" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span style="font-weight:700;font-size:11px;color:#2563EB;letter-spacing:-.3px;vertical-align:middle;">RF</span>
     `;
     btn.style.cssText = [
-      'position:fixed',
-      'bottom:80px',
-      'right:8px',
-      'width:40px',
-      'height:40px',
-      'background:#2563EB',
-      'color:#fff',
-      'border:none',
-      'border-radius:10px',
-      'cursor:pointer',
-      'z-index:2147483646',
-      'display:flex',
-      'flex-direction:column',
-      'align-items:center',
-      'justify-content:center',
-      'box-shadow:0 3px 12px rgba(37,99,235,.5)',
-      'transition:all .15s',
-      'font-family:-apple-system,BlinkMacSystemFont,sans-serif'
+      'display:inline-flex', 'align-items:center', 'justify-content:center',
+      'background:#EFF6FF', 'border:1.5px solid #2563EB', 'border-radius:7px',
+      'padding:0 8px', 'height:30px', 'cursor:pointer',
+      'font-family:-apple-system,BlinkMacSystemFont,sans-serif',
+      'transition:background .15s', 'flex-shrink:0', 'margin-right:4px'
     ].join(';');
 
-    btn.addEventListener('mouseenter', () => {
-      btn.style.background   = '#1D4ED8';
-      btn.style.transform    = 'scale(1.08)';
-      btn.style.boxShadow    = '0 5px 18px rgba(37,99,235,.6)';
-    });
-    btn.addEventListener('mouseleave', () => {
-      btn.style.background = '#2563EB';
-      btn.style.transform  = 'scale(1)';
-      btn.style.boxShadow  = '0 3px 12px rgba(37,99,235,.5)';
-    });
+    btn.addEventListener('mouseenter', () => { btn.style.background = '#DBEAFE'; });
+    btn.addEventListener('mouseleave', () => { btn.style.background = '#EFF6FF'; });
     btn.addEventListener('click', e => {
       e.stopPropagation();
+      e.preventDefault();
       buildCardPopup(btn);
     });
 
-    document.body.appendChild(btn);
+    // Insert as first item in the toolbar
+    toolbar.insertBefore(btn, toolbar.firstChild);
   }
 
-  // Show the floating button whenever LinkedIn messaging is visible
-  function updateFloatingBtn() {
-    const onMessaging =
-      location.href.includes('/messaging') ||
-      !!document.querySelector('.msg-overlay-list-bubble, .msg-overlay-conversation-bubble, .msg-form, .msg-thread, [class*="msg-overlay"]');
-
-    const existing = document.getElementById('rf-float-btn');
-    if (onMessaging) {
-      if (!existing) createFloatingRFButton();
-    } else {
-      existing?.remove();
-    }
+  function injectRFButtons() {
+    // LinkedIn chat toolbar selectors (overlay bubbles + full messaging page)
+    const toolbars = document.querySelectorAll(
+      '.msg-form__footer, .msg-form__hoist-list-item-container'
+    );
+    toolbars.forEach(toolbar => {
+      if (!toolbar.querySelector('.rf-toolbar-btn')) {
+        injectRFButtonIntoToolbar(toolbar);
+      }
+    });
   }
 
-  new MutationObserver(updateFloatingBtn).observe(document.body, { subtree: true, childList: true });
-  updateFloatingBtn();
+  new MutationObserver(injectRFButtons).observe(document.body, { subtree: true, childList: true });
+  injectRFButtons();
 
   // ── Force inject from popup (Step 4) ─────────────────────────────────────
   window.addEventListener('rf-force-inject', () => {
