@@ -761,14 +761,41 @@
     });
 
     // Insert as first item in the toolbar
-    toolbar.insertBefore(btn, toolbar.firstChild);
+    try {
+      toolbar.insertBefore(btn, toolbar.firstChild);
+    } catch (_) {
+      toolbar.appendChild(btn);
+    }
   }
 
   function injectRFButtons() {
-    // LinkedIn chat toolbar selectors (overlay bubbles + full messaging page)
-    const toolbars = document.querySelectorAll(
-      '.msg-form__footer, .msg-form__hoist-list-item-container'
-    );
+    // Try multiple LinkedIn chat toolbar selectors — LinkedIn changes these frequently
+    const selectors = [
+      '.msg-form__footer',
+      '.msg-form__hoist-list-item-container',
+      '.msg-form__hoist-list',
+      '[class*="msg-form"][class*="footer"]',
+      '[class*="msg-form"][class*="toolbar"]',
+      '[class*="msg-form"][class*="hoist"]',
+    ];
+
+    let toolbars = [];
+    for (const sel of selectors) {
+      const found = document.querySelectorAll(sel);
+      if (found.length) { toolbars = [...toolbars, ...found]; }
+    }
+
+    // Fallback: find the toolbar by looking for a row that contains the Send button
+    if (!toolbars.length) {
+      document.querySelectorAll('button').forEach(btn => {
+        const label = (btn.getAttribute('aria-label') || btn.textContent || '').toLowerCase().trim();
+        if (label === 'send' || label === 'send message') {
+          const parent = btn.closest('[class*="msg"]') || btn.parentElement?.parentElement;
+          if (parent && !toolbars.includes(parent)) toolbars.push(parent);
+        }
+      });
+    }
+
     toolbars.forEach(toolbar => {
       if (!toolbar.querySelector('.rf-toolbar-btn')) {
         injectRFButtonIntoToolbar(toolbar);
