@@ -1,6 +1,13 @@
-const GROQ_API_KEY = "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";
+let GROQ_API_KEY = ""; // loaded from storage; user sets it in Settings tab
 const GROQ_MODEL = "llama-3.3-70b-versatile";
 const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
+
+// Load persisted Groq key on startup
+chrome.storage.local.get('recruitflow_settings', d => {
+  if (d.recruitflow_settings?.groq_api_key) {
+    GROQ_API_KEY = d.recruitflow_settings.groq_api_key;
+  }
+});
 
 const GEMINI_API_KEY = ""; // Groq is primary — add a valid AIza... key here for fallback
 const GEMINI_MODEL = "gemini-1.5-flash";
@@ -78,6 +85,7 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 });
 
 async function callGroq(systemPrompt, userPrompt) {
+  if (!GROQ_API_KEY) throw new Error('No Groq API key set. Go to Settings → AI Configuration and enter your key from console.groq.com');
   const response = await fetch(GROQ_ENDPOINT, {
     method: "POST",
     headers: {
@@ -281,6 +289,11 @@ Keep it under 60 characters. Return ONLY the search keywords string.`;
       if (!query) return { success: false, error: 'AI failed to generate search query. Check your internet connection and try again.' };
 
       return { success: true, query: query.trim() };
+    }
+
+    case 'SET_GROQ_KEY': {
+      GROQ_API_KEY = message.key || '';
+      return { success: true };
     }
 
     case 'STORAGE_GET': {

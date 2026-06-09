@@ -1031,13 +1031,14 @@
     document.getElementById('rf-settings-save-btn')?.addEventListener('click', async () => {
       const name    = document.getElementById('rf-settings-name')?.value.trim()    || '';
       const company = document.getElementById('rf-settings-company')?.value.trim() || '';
-      const limit   = parseInt(document.getElementById('rf-settings-limit')?.value) || 50;
+      const limit   = parseInt(document.getElementById('rf-settings-limit')?.value) || 20;
+      const groqKey = document.getElementById('rf-settings-groq-key')?.value.trim() || '';
       const usage   = await getUsage();
       usage.daily_limit = limit;
-      await storageSet({
-        recruitflow_settings: { recruiter_name: name, recruiter_company: company, daily_limit: limit },
-        recruitflow_usage: usage
-      });
+      const settings = { recruiter_name: name, recruiter_company: company, daily_limit: limit };
+      if (groqKey) settings.groq_api_key = groqKey;
+      await storageSet({ recruitflow_settings: settings, recruitflow_usage: usage });
+      if (groqKey) await chrome.runtime.sendMessage({ type: 'SET_GROQ_KEY', key: groqKey });
       await refreshLimitBar();
       showToast('Settings saved!', 'success');
     });
@@ -1150,9 +1151,11 @@
         const n = document.getElementById('rf-settings-name');
         const c = document.getElementById('rf-settings-company');
         const l = document.getElementById('rf-settings-limit');
-        if (n) n.value = s.recruiter_name || '';
+        const g = document.getElementById('rf-settings-groq-key');
+        if (n) n.value = s.recruiter_name    || '';
         if (c) c.value = s.recruiter_company || '';
-        if (l) l.value = s.daily_limit || 50;
+        if (l) l.value = s.daily_limit       || 20;
+        if (g) g.value = s.groq_api_key      || '';
       });
       renderSettingsTemplateList();
     }
