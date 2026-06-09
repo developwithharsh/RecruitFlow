@@ -767,14 +767,13 @@
     });
   }
 
-  // ── Inject RF button into each LinkedIn chat toolbar ─────────────────────
-  function injectRFButtonIntoToolbar(toolbar) {
-
+  // ── Inject RF button next to LinkedIn's Send button ──────────────────────
+  function createRFBtn() {
     const btn = document.createElement('button');
     btn.className = 'rf-toolbar-btn';
     btn.title = 'RecruitFlow Quick Send';
     btn.innerHTML = `
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="margin-right:3px;vertical-align:middle;">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="margin-right:3px;vertical-align:middle;">
         <path d="M22 2L11 13" stroke="#2563EB" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
         <path d="M22 2L15 22 11 13 2 9l20-7z" stroke="#2563EB" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
@@ -783,61 +782,36 @@
     btn.style.cssText = [
       'display:inline-flex', 'align-items:center', 'justify-content:center',
       'background:#EFF6FF', 'border:1.5px solid #2563EB', 'border-radius:7px',
-      'padding:0 8px', 'height:30px', 'cursor:pointer',
+      'padding:0 8px', 'height:32px', 'cursor:pointer',
       'font-family:-apple-system,BlinkMacSystemFont,sans-serif',
-      'transition:background .15s', 'flex-shrink:0', 'margin-right:4px'
+      'transition:background .15s', 'flex-shrink:0', 'margin-right:6px',
+      'vertical-align:middle'
     ].join(';');
-
     btn.addEventListener('mouseenter', () => { btn.style.background = '#DBEAFE'; });
     btn.addEventListener('mouseleave', () => { btn.style.background = '#EFF6FF'; });
-    btn.addEventListener('click', e => {
-      e.stopPropagation();
-      e.preventDefault();
-      buildCardPopup(btn);
-    });
-
-    // Insert as first item in the toolbar
-    try {
-      toolbar.insertBefore(btn, toolbar.firstChild);
-    } catch (_) {
-      toolbar.appendChild(btn);
-    }
+    btn.addEventListener('click', e => { e.stopPropagation(); e.preventDefault(); buildCardPopup(btn); });
+    return btn;
   }
 
   let _rfInjectTimer = null;
   function injectRFButtons() {
     clearTimeout(_rfInjectTimer);
-    _rfInjectTimer = setTimeout(_doInjectRFButtons, 150);
+    _rfInjectTimer = setTimeout(_doInjectRFButtons, 200);
   }
 
   function _doInjectRFButtons() {
-    const selectors = [
-      '.msg-form__footer',
-      '.msg-form__hoist-list-item-container',
-      '.msg-form__hoist-list',
-    ];
+    // Strategy: find every visible LinkedIn Send button and place our RF button right before it
+    document.querySelectorAll('button').forEach(sendBtn => {
+      const label = (sendBtn.getAttribute('aria-label') || sendBtn.textContent || '').toLowerCase().trim();
+      const isSend = label === 'send' || label === 'send message';
+      if (!isSend || !sendBtn.offsetParent) return;
 
-    let toolbars = new Set();
-    for (const sel of selectors) {
-      document.querySelectorAll(sel).forEach(el => toolbars.add(el));
-    }
+      // Skip if we already injected next to this send button
+      const prev = sendBtn.previousElementSibling;
+      if (prev && prev.classList.contains('rf-toolbar-btn')) return;
 
-    // Fallback: find immediate parent of the Send button
-    if (!toolbars.size) {
-      document.querySelectorAll('button').forEach(btn => {
-        const label = (btn.getAttribute('aria-label') || btn.textContent || '').toLowerCase().trim();
-        if ((label === 'send' || label === 'send message') && btn.offsetParent) {
-          const parent = btn.parentElement;
-          if (parent) toolbars.add(parent);
-        }
-      });
-    }
-
-    toolbars.forEach(toolbar => {
-      if (!toolbar.dataset.rfInjected) {
-        toolbar.dataset.rfInjected = '1';
-        injectRFButtonIntoToolbar(toolbar);
-      }
+      const rfBtn = createRFBtn();
+      sendBtn.parentNode.insertBefore(rfBtn, sendBtn);
     });
   }
 
