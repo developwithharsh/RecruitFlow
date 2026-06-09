@@ -1,6 +1,6 @@
-const GEMINI_API_KEY = "AQ.Ab8RN6KoARAedtDVoGg1kqvs" + "ZQFlYCfHJaRGjEQCJgYWFbYoqQ";
-const GEMINI_MODEL = "gemini-1.5-flash-latest";
-const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}:generateContent`;
+const GROQ_API_KEY = "gsk_abU3KqXfSvu3U58OdyfeWGdyb3FY" + "p86muNdf8Twt6knPeCB7Ykx4";
+const GROQ_MODEL = "llama-3.3-70b-versatile";
+const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
 
 const DEFAULT_TEMPLATES = [
   {
@@ -75,28 +75,29 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 
 async function callAI(systemPrompt, userPrompt, retries = 3) {
   for (let attempt = 1; attempt <= retries; attempt++) {
-    // AQ. keys are OAuth tokens — send as Bearer header instead of query param
-    const isOAuthToken = GEMINI_API_KEY.startsWith('AQ.');
-    const url = isOAuthToken ? GEMINI_ENDPOINT : `${GEMINI_ENDPOINT}?key=${GEMINI_API_KEY}`;
-    const headers = { "Content-Type": "application/json" };
-    if (isOAuthToken) headers["Authorization"] = `Bearer ${GEMINI_API_KEY}`;
-
-    const response = await fetch(url, {
+    const response = await fetch(GROQ_ENDPOINT, {
       method: "POST",
-      headers,
+      headers: {
+        "Authorization": `Bearer ${GROQ_API_KEY}`,
+        "Content-Type": "application/json"
+      },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }],
-        generationConfig: { maxOutputTokens: 500, temperature: 0.7 }
+        model: GROQ_MODEL,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt }
+        ],
+        max_tokens: 500,
+        temperature: 0.7
       })
     });
 
     if (response.status === 429) {
       if (attempt < retries) {
-        // Wait before retrying (exponential backoff: 5s, 10s, 20s)
-        await new Promise(r => setTimeout(r, 5000 * attempt));
+        await new Promise(r => setTimeout(r, 3000 * attempt));
         continue;
       }
-      throw new Error('Rate limit reached. Please wait a moment and try again.');
+      throw new Error('Rate limit reached. Please try again in a moment.');
     }
 
     if (!response.ok) {
@@ -105,7 +106,7 @@ async function callAI(systemPrompt, userPrompt, retries = 3) {
     }
 
     const data = await response.json();
-    return data.candidates[0].content.parts[0].text;
+    return data.choices[0].message.content;
   }
 }
 
