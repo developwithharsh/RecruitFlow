@@ -185,6 +185,10 @@
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
       Settings
     </button>
+    <button class="rf-tab-btn" data-tab="search">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="22" y2="22"/></svg>
+      Search
+    </button>
   </div>
 
   <!-- ── JD PANEL ── -->
@@ -389,6 +393,24 @@
       <button id="rf-reset-onboard" class="rf-btn-secondary rf-btn-sm" style="margin-top:8px;font-size:11px;color:#94A3B8 !important;border-color:#E2E8F0 !important;width:100% !important;">
         ↺ Reset onboarding (dev only)
       </button>
+    </div>
+  </div>
+
+  <!-- ── SEARCH PANEL ── -->
+  <div id="rf-panel-search" class="rf-panel" data-panel="search">
+    <div class="rf-panel-scroll">
+      <div class="rf-section">
+        <label class="rf-label">Describe Your Ideal Candidate</label>
+        <textarea id="rf-search-desc" class="rf-textarea" rows="4" placeholder="e.g. Senior React developer with 5+ years, startup experience, based in Bangalore or remote..."></textarea>
+      </div>
+      <button id="rf-search-ai-btn" class="rf-btn-ai">✦ Generate Search <span class="rf-ai-uses-badge"></span></button>
+      <div id="rf-search-result" style="display:none;margin-top:10px;">
+        <label class="rf-label">AI-Suggested Search Query</label>
+        <div id="rf-search-query-box" style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:10px;font-size:12px;color:#0F172A;line-height:1.6;margin-bottom:8px;white-space:pre-wrap;"></div>
+        <label class="rf-label" style="margin-top:8px;">LinkedIn Search URL</label>
+        <div id="rf-search-url-box" style="background:#EFF6FF;border:1px solid #DBEAFE;border-radius:8px;padding:8px 10px;font-size:11px;color:#2563EB;line-height:1.5;margin-bottom:10px;word-break:break-all;"></div>
+        <button id="rf-search-go-btn" class="rf-btn-primary">🔍 Search on LinkedIn (Automate)</button>
+      </div>
     </div>
   </div>
 
@@ -732,7 +754,6 @@
 
   // ── Inject RF button into each LinkedIn chat toolbar ─────────────────────
   function injectRFButtonIntoToolbar(toolbar) {
-    if (toolbar.querySelector('.rf-toolbar-btn')) return;
 
     const btn = document.createElement('button');
     btn.className = 'rf-toolbar-btn';
@@ -768,36 +789,38 @@
     }
   }
 
+  let _rfInjectTimer = null;
   function injectRFButtons() {
-    // Try multiple LinkedIn chat toolbar selectors — LinkedIn changes these frequently
+    clearTimeout(_rfInjectTimer);
+    _rfInjectTimer = setTimeout(_doInjectRFButtons, 150);
+  }
+
+  function _doInjectRFButtons() {
     const selectors = [
       '.msg-form__footer',
       '.msg-form__hoist-list-item-container',
       '.msg-form__hoist-list',
-      '[class*="msg-form"][class*="footer"]',
-      '[class*="msg-form"][class*="toolbar"]',
-      '[class*="msg-form"][class*="hoist"]',
     ];
 
-    let toolbars = [];
+    let toolbars = new Set();
     for (const sel of selectors) {
-      const found = document.querySelectorAll(sel);
-      if (found.length) { toolbars = [...toolbars, ...found]; }
+      document.querySelectorAll(sel).forEach(el => toolbars.add(el));
     }
 
-    // Fallback: find the toolbar by looking for a row that contains the Send button
-    if (!toolbars.length) {
+    // Fallback: find immediate parent of the Send button
+    if (!toolbars.size) {
       document.querySelectorAll('button').forEach(btn => {
         const label = (btn.getAttribute('aria-label') || btn.textContent || '').toLowerCase().trim();
-        if (label === 'send' || label === 'send message') {
-          const parent = btn.closest('[class*="msg"]') || btn.parentElement?.parentElement;
-          if (parent && !toolbars.includes(parent)) toolbars.push(parent);
+        if ((label === 'send' || label === 'send message') && btn.offsetParent) {
+          const parent = btn.parentElement;
+          if (parent) toolbars.add(parent);
         }
       });
     }
 
     toolbars.forEach(toolbar => {
-      if (!toolbar.querySelector('.rf-toolbar-btn')) {
+      if (!toolbar.dataset.rfInjected) {
+        toolbar.dataset.rfInjected = '1';
         injectRFButtonIntoToolbar(toolbar);
       }
     });

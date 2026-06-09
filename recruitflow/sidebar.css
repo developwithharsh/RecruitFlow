@@ -163,7 +163,7 @@
 /* ── Tabs ────────────────────────────────────────────────────────────────── */
 .rf-tabs {
   display: grid !important;
-  grid-template-columns: repeat(4, 1fr) !important;
+  grid-template-columns: repeat(5, 1fr) !important;
   border-bottom: 1px solid #E2E8F0 !important;
   flex-shrink: 0 !important;
   background: #FFFFFF !important;
@@ -184,7 +184,7 @@
   justify-content: center !important;
   gap: 2px !important;
   cursor: pointer !important;
-  font-size: 10px !important;
+  font-size: 9px !important;
   font-weight: 600 !important;
   color: #64748B !important;
   transition: color 0.2s !important;
