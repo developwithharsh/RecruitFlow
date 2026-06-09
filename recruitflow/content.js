@@ -831,12 +831,18 @@
   window.addEventListener('rf-force-inject', () => {
     if (!document.getElementById('recruitflow-sidebar-container')) {
       injectSidebar();
-    } else {
-      document.getElementById('recruitflow-sidebar-container')?.classList.remove('collapsed');
     }
+    document.getElementById('recruitflow-sidebar-container')?.classList.remove('collapsed');
   });
 
   // ── Boot ──────────────────────────────────────────────────────────────────
-  // Sidebar is NOT auto-injected. It opens only when the user clicks the
-  // extension icon (background.js dispatches rf-force-inject via scripting API).
+  // If user has ever activated the extension, show toggle tab (collapsed) on load.
+  chrome.storage.local.get('recruitflow_active', (result) => {
+    if (result.recruitflow_active) {
+      if (!document.getElementById('recruitflow-sidebar-container')) {
+        injectSidebar();
+        document.getElementById('recruitflow-sidebar-container')?.classList.add('collapsed');
+      }
+    }
+  });
 })();

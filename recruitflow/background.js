@@ -24,6 +24,8 @@ const DEFAULT_TEMPLATES = [
 chrome.action.onClicked.addListener(async (tab) => {
   if (!tab.url) return;
   if (tab.url.includes('linkedin.com')) {
+    // Mark extension as activated so toggle tab persists across refreshes
+    await chrome.storage.local.set({ recruitflow_active: true });
     // On LinkedIn — toggle (show/hide) the sidebar
     try {
       await chrome.scripting.executeScript({
