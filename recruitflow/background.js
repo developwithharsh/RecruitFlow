@@ -1,5 +1,5 @@
 const GEMINI_API_KEY = "AQ.Ab8RN6KoARAedtDVoGg1kqvs" + "ZQFlYCfHJaRGjEQCJgYWFbYoqQ";
-const GEMINI_MODEL = "gemini-2.0-flash";
+const GEMINI_MODEL = "gemini-1.5-flash";
 const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 const DEFAULT_TEMPLATES = [
@@ -73,21 +73,34 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   }
 });
 
-async function callAI(systemPrompt, userPrompt) {
-  const response = await fetch(`${GEMINI_ENDPOINT}?key=${GEMINI_API_KEY}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }],
-      generationConfig: { maxOutputTokens: 500, temperature: 0.7 }
-    })
-  });
-  if (!response.ok) {
-    const errBody = await response.text().catch(() => '');
-    throw new Error(`AI error ${response.status}: ${errBody}`);
+async function callAI(systemPrompt, userPrompt, retries = 3) {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    const response = await fetch(`${GEMINI_ENDPOINT}?key=${GEMINI_API_KEY}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }],
+        generationConfig: { maxOutputTokens: 500, temperature: 0.7 }
+      })
+    });
+
+    if (response.status === 429) {
+      if (attempt < retries) {
+        // Wait before retrying (exponential backoff: 5s, 10s, 20s)
+        await new Promise(r => setTimeout(r, 5000 * attempt));
+        continue;
+      }
+      throw new Error('Rate limit reached. Please wait a moment and try again.');
+    }
+
+    if (!response.ok) {
+      const errBody = await response.text().catch(() => '');
+      throw new Error(`AI error ${response.status}: ${errBody}`);
+    }
+
+    const data = await response.json();
+    return data.candidates[0].content.parts[0].text;
   }
-  const data = await response.json();
-  return data.candidates[0].content.parts[0].text;
 }
 
 async function getUsage() {
