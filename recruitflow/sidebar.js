@@ -866,7 +866,36 @@
         btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
           stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
-        </svg> Send Message`;
+        </svg> Send`;
+      }
+    });
+
+    // Save message to active JD
+    document.getElementById('rf-save-to-jd-btn')?.addEventListener('click', async () => {
+      const activeSubTab = document.querySelector('.rf-sub-tab-btn.active')?.dataset.sub || 'template';
+      const msgText = activeSubTab === 'ai'
+        ? document.getElementById('rf-ai-message-text')?.value?.trim()
+        : document.getElementById('rf-message-preview')?.value?.trim();
+
+      if (!msgText) { showToast('Write or generate a message first', 'warning'); return; }
+
+      const jd = await getActiveJD();
+      if (!jd) { showToast('No active JD — go to JD tab and set one active', 'warning'); return; }
+
+      const btn = document.getElementById('rf-save-to-jd-btn');
+      btn.disabled = true;
+
+      try {
+        const jds = await storageGet('recruitflow_jds') || [];
+        const idx = jds.findIndex(j => j.id === jd.id);
+        if (idx === -1) throw new Error('JD not found');
+        jds[idx].savedMessage = msgText;
+        await storageSet('recruitflow_jds', jds);
+        showToast(`Message saved to "${jd.title}"`, 'success');
+      } catch (e) {
+        showToast(e.message || 'Could not save message', 'error');
+      } finally {
+        btn.disabled = false;
       }
     });
   }

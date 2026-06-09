@@ -294,14 +294,22 @@
         </div>
       </div>
     </div>
-    <!-- Send panel pinned to bottom -->
+    <!-- Action panel pinned to bottom -->
     <div class="rf-send-panel">
-      <button id="rf-send-btn" class="rf-btn-primary">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
-        </svg>
-        Send Message
-      </button>
+      <div style="display:flex;gap:6px;width:100%;">
+        <button id="rf-save-to-jd-btn" class="rf-btn-secondary" style="flex:1;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
+          </svg>
+          Save to JD
+        </button>
+        <button id="rf-send-btn" class="rf-btn-primary" style="flex:1;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+          </svg>
+          Send
+        </button>
+      </div>
       <div class="rf-limit-bar-wrap">
         <div class="rf-limit-bar-label">
           <span><span id="rf-limit-count">0</span> / <span id="rf-limit-max">50</span> messages today</span>
@@ -484,10 +492,8 @@
   new MutationObserver(() => {
     if (location.href !== lastUrl) {
       lastUrl = location.href;
-      // Ensure sidebar exists on every LinkedIn SPA navigation
-      if (!document.getElementById('recruitflow-sidebar-container')) {
-        injectSidebar();
-      }
+      // Only re-inject on SPA navigation if sidebar was already open
+      // (never auto-open on page load — user must click the extension icon)
       if (location.href.includes('/in/')) {
         // On a profile page — re-read and broadcast updated profile
         setTimeout(() => {
@@ -772,9 +778,6 @@
   });
 
   // ── Boot ──────────────────────────────────────────────────────────────────
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', injectSidebar);
-  } else {
-    injectSidebar();
-  }
+  // Sidebar is NOT auto-injected. It opens only when the user clicks the
+  // extension icon (background.js dispatches rf-force-inject via scripting API).
 })();

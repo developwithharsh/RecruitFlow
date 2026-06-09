@@ -544,6 +544,15 @@
   border-top: 1px solid #E2E8F0 !important;
   background: #FFFFFF !important;
   flex-shrink: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+}
+
+.rf-send-panel .rf-btn-primary,
+.rf-send-panel .rf-btn-secondary {
+  width: auto !important;
+  flex: 1 !important;
 }
 
 /* ── Limit bar ───────────────────────────────────────────────────────────── */
