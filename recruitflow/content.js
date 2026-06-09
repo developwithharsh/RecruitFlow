@@ -802,7 +802,9 @@
   function _doInjectRFButtons() {
     // Find every visible LinkedIn Send button and place our RF button right before it
     document.querySelectorAll('button').forEach(sendBtn => {
-      // Check aria-label first, then innerText (not textContent — avoids hidden spans)
+      // Skip anything inside our own sidebar
+      if (sendBtn.closest('#recruitflow-sidebar-container')) return;
+
       const ariaLabel = (sendBtn.getAttribute('aria-label') || '').toLowerCase().trim();
       const visibleText = (sendBtn.innerText || '').toLowerCase().trim();
       const isSend = ariaLabel === 'send' || ariaLabel === 'send message' ||
