@@ -403,7 +403,7 @@
         <label class="rf-label">Describe Your Ideal Candidate</label>
         <textarea id="rf-search-desc" class="rf-textarea" rows="4" placeholder="e.g. Senior React developer with 5+ years, startup experience, based in Bangalore or remote..."></textarea>
       </div>
-      <button id="rf-search-ai-btn" class="rf-btn-ai">✦ Generate Search <span class="rf-ai-uses-badge"></span></button>
+      <button id="rf-search-ai-btn" class="rf-btn-ai">✦ Generate Search</button>
       <div id="rf-search-result" style="display:none;margin-top:10px;">
         <label class="rf-label">AI-Suggested Search Query</label>
         <div id="rf-search-query-box" style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:10px;font-size:12px;color:#0F172A;line-height:1.6;margin-bottom:8px;white-space:pre-wrap;"></div>

@@ -261,12 +261,6 @@ Return only the improved JD. No explanation.`;
 
     case 'GENERATE_SEARCH_QUERY': {
       const { description } = message;
-      let usage = await getUsage();
-      usage = await checkAndResetDaily(usage);
-
-      if (!usage.is_pro && (usage.ai_uses_total || 0) >= 3) {
-        return { success: false, limitReached: true };
-      }
 
       const systemPrompt = "You are a LinkedIn recruiter expert. Generate optimal LinkedIn people search keywords.";
       const userPrompt = `Based on this candidate requirement: "${description}"
@@ -284,10 +278,7 @@ Keep it under 60 characters. Return ONLY the search keywords string.`;
         try { query = await callGemini(`${systemPrompt}\n\n${userPrompt}`); } catch (_) {}
       }
 
-      if (!query) return { success: false, error: 'AI failed to generate search query' };
-
-      usage.ai_uses_total = (usage.ai_uses_total || 0) + 1;
-      await chrome.storage.local.set({ recruitflow_usage: usage });
+      if (!query) return { success: false, error: 'AI failed to generate search query. Check your internet connection and try again.' };
 
       return { success: true, query: query.trim() };
     }

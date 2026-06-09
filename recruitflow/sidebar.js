@@ -1046,7 +1046,9 @@
           description: desc
         });
 
-        if (!result?.success) throw new Error(result?.error || 'AI failed');
+        if (!result?.success) {
+          throw new Error(result?.error || 'AI failed to generate search query');
+        }
 
         const query = result.query || '';
         const keywords = encodeURIComponent(query);
@@ -1063,8 +1065,7 @@
         showToast(e.message || 'Search generation failed', 'error');
       } finally {
         btn.disabled = false;
-        btn.innerHTML = '✦ Generate Search <span class="rf-ai-uses-badge"></span>';
-        await refreshAIBadge();
+        btn.innerHTML = '✦ Generate Search';
       }
     });
   }
