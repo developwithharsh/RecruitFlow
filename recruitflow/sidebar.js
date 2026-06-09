@@ -460,6 +460,12 @@
           }
         </div>
         ${snippet ? `<div style="font-size:11px;color:#64748B;line-height:1.5;margin-bottom:10px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${snippet}…</div>` : ''}
+        ${jd.savedMessage ? `
+          <div style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:7px;padding:8px 10px;margin-bottom:8px;">
+            <div style="font-size:9px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">💬 Saved Message</div>
+            <div style="font-size:11px;color:#0F172A;line-height:1.5;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;">${jd.savedMessage}</div>
+          </div>
+        ` : ''}
         <div style="display:flex;gap:6px;">
           <button class="rf-jd-edit-btn rf-btn-secondary rf-btn-sm" style="flex:1;font-size:11px;">✏ Edit</button>
           <button class="rf-jd-del-btn rf-btn-secondary rf-btn-sm" style="flex:1;font-size:11px;color:#DC2626;border-color:#FCA5A5;">🗑 Delete</button>
@@ -870,34 +876,71 @@
       }
     });
 
-    // Save message to active JD
+    // Save message to JD — show picker modal
     document.getElementById('rf-save-to-jd-btn')?.addEventListener('click', async () => {
-      // Pick whichever text area has content (AI output takes priority if filled)
       const aiText  = document.getElementById('rf-ai-message-text')?.value?.trim();
       const tplText = document.getElementById('rf-message-preview')?.value?.trim();
       const msgText = aiText || tplText;
 
       if (!msgText) { showToast('Write or generate a message first', 'warning'); return; }
 
-      const jd = await getActiveJD();
-      if (!jd) { showToast('No active JD — go to JD tab and set one active', 'warning'); return; }
+      const jds = await getAllJDs();
+      if (!jds.length) { showToast('No JDs saved yet — add one in the JD tab', 'warning'); return; }
 
-      const btn = document.getElementById('rf-save-to-jd-btn');
-      btn.disabled = true;
-
-      try {
-        const jds = await storageGet('recruitflow_jds') || [];
-        const idx = jds.findIndex(j => j.id === jd.id);
-        if (idx === -1) throw new Error('JD not found');
-        jds[idx].savedMessage = msgText;
-        await storageSet({ recruitflow_jds: jds });
-        showToast(`Message saved to "${jd.title}"`, 'success');
-      } catch (e) {
-        showToast(e.message || 'Could not save message', 'error');
-      } finally {
-        btn.disabled = false;
-      }
+      showJDPickerModal(jds, msgText);
     });
+
+  function showJDPickerModal(jds, msgText) {
+    document.getElementById('rf-jd-picker-modal')?.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'rf-jd-picker-modal';
+    modal.style.cssText = [
+      'position:fixed', 'inset:0', 'z-index:2147483647',
+      'background:rgba(15,23,42,0.45)', 'display:flex',
+      'align-items:center', 'justify-content:center',
+      'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif'
+    ].join(';');
+
+    modal.innerHTML = `
+      <div style="background:#fff;border-radius:16px;width:300px;max-height:460px;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.25);overflow:hidden;">
+        <div style="padding:14px 16px;border-bottom:1px solid #E2E8F0;display:flex;align-items:center;justify-content:space-between;background:#F8FAFC;">
+          <div style="font-weight:700;font-size:13px;color:#0F172A;">Save Message to JD</div>
+          <button id="rf-picker-close" style="background:none;border:none;font-size:18px;cursor:pointer;color:#94A3B8;line-height:1;">✕</button>
+        </div>
+        <div style="padding:10px;font-size:11px;color:#64748B;border-bottom:1px solid #F1F5F9;">Select which JD to save this message under:</div>
+        <div id="rf-picker-list" style="overflow-y:auto;flex:1;padding:8px;"></div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+    modal.querySelector('#rf-picker-close').addEventListener('click', () => modal.remove());
+    modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+
+    const list = modal.querySelector('#rf-picker-list');
+    jds.forEach(jd => {
+      const item = document.createElement('div');
+      item.style.cssText = 'background:#F8FAFC;border:1.5px solid #E2E8F0;border-radius:10px;padding:10px 12px;margin-bottom:6px;cursor:pointer;transition:border-color .15s,background .15s;';
+      item.innerHTML = `
+        <div style="font-weight:700;font-size:12px;color:#0F172A;margin-bottom:2px;">${jd.title || 'Untitled JD'}</div>
+        <div style="font-size:10px;color:#94A3B8;">${(jd.text||'').replace(/\s+/g,' ').trim().slice(0,60)}…</div>
+      `;
+      item.addEventListener('mouseenter', () => { item.style.borderColor = '#2563EB'; item.style.background = '#EFF6FF'; });
+      item.addEventListener('mouseleave', () => { item.style.borderColor = '#E2E8F0'; item.style.background = '#F8FAFC'; });
+      item.addEventListener('click', async () => {
+        const allJDs = await getAllJDs();
+        const idx = allJDs.findIndex(j => j.id === jd.id);
+        if (idx > -1) {
+          allJDs[idx].savedMessage = msgText;
+          await storageSet({ recruitflow_jds: allJDs });
+          showToast(`Message saved to "${jd.title}"`, 'success');
+          modal.remove();
+          renderJDCards();
+        }
+      });
+      list.appendChild(item);
+    });
+  }
   }
 
   function wireTrackerTab() {
@@ -985,6 +1028,44 @@
       await storageSet({ recruitflow_settings: s });
       showToast('Onboarding reset. Reloading…', 'success');
       setTimeout(() => location.reload(), 1500);
+    });
+  }
+
+  function wireSearchTab() {
+    document.getElementById('rf-search-ai-btn')?.addEventListener('click', async () => {
+      const desc = document.getElementById('rf-search-desc')?.value?.trim();
+      if (!desc) { showToast('Describe the candidate first', 'warning'); return; }
+
+      const btn = document.getElementById('rf-search-ai-btn');
+      btn.disabled = true;
+      btn.textContent = 'Generating…';
+
+      try {
+        const result = await chrome.runtime.sendMessage({
+          type: 'GENERATE_SEARCH_QUERY',
+          description: desc
+        });
+
+        if (!result?.success) throw new Error(result?.error || 'AI failed');
+
+        const query = result.query || '';
+        const keywords = encodeURIComponent(query);
+        const url = `https://www.linkedin.com/search/results/people/?keywords=${keywords}&origin=GLOBAL_SEARCH_HEADER`;
+
+        document.getElementById('rf-search-query-box').textContent = query;
+        document.getElementById('rf-search-url-box').textContent = url;
+        document.getElementById('rf-search-result').style.display = 'block';
+
+        document.getElementById('rf-search-go-btn').onclick = () => {
+          window.open(url, '_blank');
+        };
+      } catch (e) {
+        showToast(e.message || 'Search generation failed', 'error');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '✦ Generate Search <span class="rf-ai-uses-badge"></span>';
+        await refreshAIBadge();
+      }
     });
   }
 
@@ -1177,6 +1258,7 @@
     wireMessageTab();
     wireTrackerTab();
     wireSettingsTab();
+    wireSearchTab();
 
     await Promise.all([
       renderJDCards(),

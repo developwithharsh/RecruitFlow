@@ -259,6 +259,39 @@ Return only the improved JD. No explanation.`;
       return { success: true, optimized };
     }
 
+    case 'GENERATE_SEARCH_QUERY': {
+      const { description } = message;
+      let usage = await getUsage();
+      usage = await checkAndResetDaily(usage);
+
+      if (!usage.is_pro && (usage.ai_uses_total || 0) >= 3) {
+        return { success: false, limitReached: true };
+      }
+
+      const systemPrompt = "You are a LinkedIn recruiter expert. Generate optimal LinkedIn people search keywords.";
+      const userPrompt = `Based on this candidate requirement: "${description}"
+
+Generate a concise LinkedIn search query (keywords only, no explanations) that would find the best matching candidates. Include:
+- Job title variations
+- Key skills
+- Relevant experience terms
+Keep it under 60 characters. Return ONLY the search keywords string.`;
+
+      let query = null;
+      try {
+        query = await callGroq(systemPrompt, userPrompt);
+      } catch (e) {
+        try { query = await callGemini(`${systemPrompt}\n\n${userPrompt}`); } catch (_) {}
+      }
+
+      if (!query) return { success: false, error: 'AI failed to generate search query' };
+
+      usage.ai_uses_total = (usage.ai_uses_total || 0) + 1;
+      await chrome.storage.local.set({ recruitflow_usage: usage });
+
+      return { success: true, query: query.trim() };
+    }
+
     case 'STORAGE_GET': {
       const result = await chrome.storage.local.get(message.key);
       return { value: result[message.key] };
