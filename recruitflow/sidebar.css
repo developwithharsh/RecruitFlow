@@ -42,6 +42,7 @@
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
   pointer-events: all !important;
   box-sizing: border-box !important;
+  overflow: visible !important;
 }
 
 #recruitflow-sidebar-container.collapsed {
