@@ -1,6 +1,6 @@
 const GEMINI_API_KEY = "AQ.Ab8RN6KoARAedtDVoGg1kqvs" + "ZQFlYCfHJaRGjEQCJgYWFbYoqQ";
-const GEMINI_MODEL = "gemini-1.5-flash";
-const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+const GEMINI_MODEL = "gemini-1.5-flash-latest";
+const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}:generateContent`;
 
 const DEFAULT_TEMPLATES = [
   {
@@ -75,9 +75,15 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 
 async function callAI(systemPrompt, userPrompt, retries = 3) {
   for (let attempt = 1; attempt <= retries; attempt++) {
-    const response = await fetch(`${GEMINI_ENDPOINT}?key=${GEMINI_API_KEY}`, {
+    // AQ. keys are OAuth tokens — send as Bearer header instead of query param
+    const isOAuthToken = GEMINI_API_KEY.startsWith('AQ.');
+    const url = isOAuthToken ? GEMINI_ENDPOINT : `${GEMINI_ENDPOINT}?key=${GEMINI_API_KEY}`;
+    const headers = { "Content-Type": "application/json" };
+    if (isOAuthToken) headers["Authorization"] = `Bearer ${GEMINI_API_KEY}`;
+
+    const response = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({
         contents: [{ parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }],
         generationConfig: { maxOutputTokens: 500, temperature: 0.7 }
