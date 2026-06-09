@@ -1,9 +1,5 @@
-const GROQ_API_KEY = "REPLACE_WITH_NEW_KEY";
-const GROQ_MODEL = "llama-3.3-70b-versatile";
-const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
-
-const GEMINI_API_KEY = ""; // Groq is primary — add a valid AIza... key here for fallback
-const GEMINI_MODEL = "gemini-1.5-flash";
+const GEMINI_API_KEY = "REPLACE_WITH_GEMINI_KEY";
+const GEMINI_MODEL = "gemini-2.0-flash";
 const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 const DEFAULT_TEMPLATES = [
@@ -77,41 +73,19 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   }
 });
 
-async function callGroq(systemPrompt, userPrompt) {
-  const response = await fetch(GROQ_ENDPOINT, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${GROQ_API_KEY}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      model: GROQ_MODEL,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt }
-      ],
-      max_tokens: 400,
-      temperature: 0.7
-    })
-  });
-  if (!response.ok) {
-    const errBody = await response.text().catch(() => '');
-    throw new Error(`Groq ${response.status}: ${errBody}`);
-  }
-  const data = await response.json();
-  return data.choices[0].message.content;
-}
-
-async function callGemini(prompt) {
+async function callAI(systemPrompt, userPrompt) {
   const response = await fetch(`${GEMINI_ENDPOINT}?key=${GEMINI_API_KEY}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { maxOutputTokens: 400, temperature: 0.7 }
+      contents: [{ parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }],
+      generationConfig: { maxOutputTokens: 500, temperature: 0.7 }
     })
   });
-  if (!response.ok) throw new Error(`Gemini error: ${response.status}`);
+  if (!response.ok) {
+    const errBody = await response.text().catch(() => '');
+    throw new Error(`AI error ${response.status}: ${errBody}`);
+  }
   const data = await response.json();
   return data.candidates[0].content.parts[0].text;
 }
@@ -201,23 +175,14 @@ async function handleMessage(message, sender) {
         ? `Recruiter's rough draft message:\n"${message.roughDraft}"\n\nCandidate: ${profileData.name || 'the candidate'}, currently ${profileData.role || 'in their role'} at ${profileData.company || 'their company'}, located in ${profileData.location || 'their city'}.\nJob opening: ${jdText ? jdText.substring(0, 400) : 'an exciting opportunity'}\nRequested tone: ${tone || 'Professional'}\n\nImprove and personalise the rough draft by:\n1. Fixing grammar, flow, and professionalism\n2. Personalising it to this specific candidate (mention their role/company naturally)\n3. Keeping the recruiter's core message and intent intact\n4. Making it sound human and warm, NOT AI-generated\n5. Keeping it under 180 words\nReturn only the improved message. No explanation.`
         : `Candidate name: ${profileData.name || 'the candidate'}\nCurrent role: ${profileData.role || 'their current role'}\nCurrent company: ${profileData.company || 'their company'}\nLocation: ${profileData.location || ''}\nJob Description: ${jdText || 'an exciting opportunity'}\nTone: ${tone || 'Professional'} (Professional / Friendly / Brief)\n\nWrite a LinkedIn outreach message (max 180 words) that:\n1. Opens with their name\n2. References their current role or company specifically\n3. Briefly explains the opportunity without dumping the full JD\n4. Ends with a simple question or call to action\n5. Sounds like it was written by a human recruiter\nReturn only the message text. No subject line. No extra explanation.`;
 
-      let generatedText = null;
       try {
-        generatedText = await callGroq(systemPrompt, userPrompt);
-      } catch (groqErr) {
-        console.warn('RecruitFlow: Groq failed, trying Gemini', groqErr);
-        try {
-          generatedText = await callGemini(`${systemPrompt}\n\n${userPrompt}`);
-        } catch (geminiErr) {
-          console.error('RecruitFlow: Both AI providers failed', geminiErr);
-          return { success: false, error: `AI failed: ${groqErr?.message || 'unknown error'}` };
-        }
+        const generatedText = await callAI(systemPrompt, userPrompt);
+        usage.ai_uses_total = (usage.ai_uses_total || 0) + 1;
+        await chrome.storage.local.set({ recruitflow_usage: usage });
+        return { success: true, message: generatedText };
+      } catch (err) {
+        return { success: false, error: `AI failed: ${err.message}` };
       }
-
-      usage.ai_uses_total = (usage.ai_uses_total || 0) + 1;
-      await chrome.storage.local.set({ recruitflow_usage: usage });
-
-      return { success: true, message: generatedText };
     }
 
     case 'OPTIMIZE_JD': {
@@ -229,58 +194,30 @@ async function handleMessage(message, sender) {
         return { success: false, limitReached: true };
       }
 
-      const systemPrompt = "You are an expert HR consultant who improves job descriptions to attract top candidates.";
-      const userPrompt = `Original JD:
-${jdText}
+      const sysPmt = "You are an expert HR consultant who improves job descriptions to attract top candidates.";
+      const usrPmt = `Original JD:\n${jdText}\n\nImprove this job description by:\n1. Making the role title clearer\n2. Listing 5-7 key responsibilities as bullet points\n3. Listing 4-5 must-have skills\n4. Removing jargon and corporate speak\n5. Adding a brief, compelling company/role intro (2 sentences max)\nReturn only the improved JD. No explanation.`;
 
-Improve this job description by:
-1. Making the role title clearer
-2. Listing 5-7 key responsibilities as bullet points
-3. Listing 4-5 must-have skills
-4. Removing jargon and corporate speak
-5. Adding a brief, compelling company/role intro (2 sentences max)
-Return only the improved JD. No explanation.`;
-
-      let optimized = null;
       try {
-        optimized = await callGroq(systemPrompt, userPrompt);
-      } catch (groqErr) {
-        console.warn('RecruitFlow: Groq failed, trying Gemini', groqErr);
-        try {
-          optimized = await callGemini(`${systemPrompt}\n\n${userPrompt}`);
-        } catch (geminiErr) {
-          return { success: false, error: `AI failed: ${groqErr?.message || 'unknown error'}` };
-        }
+        const optimized = await callAI(sysPmt, usrPmt);
+        usage.ai_uses_total = (usage.ai_uses_total || 0) + 1;
+        await chrome.storage.local.set({ recruitflow_usage: usage });
+        return { success: true, optimized };
+      } catch (err) {
+        return { success: false, error: `AI failed: ${err.message}` };
       }
-
-      usage.ai_uses_total = (usage.ai_uses_total || 0) + 1;
-      await chrome.storage.local.set({ recruitflow_usage: usage });
-
-      return { success: true, optimized };
     }
 
     case 'GENERATE_SEARCH_QUERY': {
       const { description } = message;
+      const sysPmt = "You are a LinkedIn recruiter expert. Generate optimal LinkedIn people search keywords.";
+      const usrPmt = `Based on this candidate requirement: "${description}"\n\nGenerate a concise LinkedIn search query (keywords only, no explanations) that would find the best matching candidates. Include job title variations, key skills, and relevant experience terms. Keep it under 60 characters. Return ONLY the search keywords string.`;
 
-      const systemPrompt = "You are a LinkedIn recruiter expert. Generate optimal LinkedIn people search keywords.";
-      const userPrompt = `Based on this candidate requirement: "${description}"
-
-Generate a concise LinkedIn search query (keywords only, no explanations) that would find the best matching candidates. Include:
-- Job title variations
-- Key skills
-- Relevant experience terms
-Keep it under 60 characters. Return ONLY the search keywords string.`;
-
-      let query = null;
       try {
-        query = await callGroq(systemPrompt, userPrompt);
-      } catch (e) {
-        try { query = await callGemini(`${systemPrompt}\n\n${userPrompt}`); } catch (_) {}
+        const query = await callAI(sysPmt, usrPmt);
+        return { success: true, query: query.trim() };
+      } catch (err) {
+        return { success: false, error: `AI failed: ${err.message}` };
       }
-
-      if (!query) return { success: false, error: 'AI failed to generate search query. Check your internet connection and try again.' };
-
-      return { success: true, query: query.trim() };
     }
 
     case 'STORAGE_GET': {
