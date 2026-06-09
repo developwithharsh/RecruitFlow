@@ -583,14 +583,29 @@
   }
 
   function buildQuickMessage(jd, recruiterName, recruiterCompany) {
-    // Try to read candidate name from the open chat header
+    // Read the RECIPIENT name from the chat header (not from message bubbles)
     const headerName =
+      // Overlay chat bubble header (bottom-right pop-up chat)
       document.querySelector('.msg-overlay-bubble-header__title')?.innerText?.trim() ||
+      // Full messaging page — conversation heading
       document.querySelector('.msg-thread-heading__name')?.innerText?.trim() ||
-      document.querySelector('.presence-entity__name')?.innerText?.trim() ||
-      document.querySelector('.msg-s-message-group__profile-link')?.innerText?.trim() ||
+      // Full messaging page — entity lockup in header
+      document.querySelector('.msg-entity-lockup__entity-title')?.innerText?.trim() ||
+      // Conversation list item participant names (visible in header area)
+      document.querySelector('.msg-conversation-listitem__participant-names span')?.innerText?.trim() ||
+      // Fallback: aria-label on the header link
+      document.querySelector('[class*="msg"][class*="header"] a[href*="/in/"]')?.getAttribute('aria-label')?.trim() ||
+      // Last resort: first link in the thread heading that goes to a profile
+      document.querySelector('.msg-thread__link-to-profile')?.innerText?.trim() ||
       '';
-    const firstName = (headerName || 'there').split(' ')[0];
+
+    // Safety check: if we got the recruiter's own name, discard it
+    const ownName = recruiterName?.split(' ')[0]?.toLowerCase() || '';
+    const candidate = (headerName && headerName.toLowerCase().split(' ')[0] !== ownName)
+      ? headerName
+      : '';
+
+    const firstName = (candidate || 'there').split(' ')[0];
     const jdTitle   = jd.title || 'an exciting opportunity';
     return `Hi ${firstName},\n\nI came across your profile and wanted to reach out about a ${jdTitle} role that I think could be a great fit for you.\n\nWould you be open to a quick 10-minute call this week?\n\nBest regards,\n${recruiterName}${recruiterCompany ? ', ' + recruiterCompany : ''}`;
   }
