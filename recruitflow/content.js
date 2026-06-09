@@ -373,14 +373,6 @@
           <input id="rf-settings-limit" class="rf-input" type="number" value="20" min="1" max="200">
         </div>
       </div>
-      <div class="rf-settings-group">
-        <div class="rf-settings-group-title">AI Configuration</div>
-        <div class="rf-settings-row">
-          <label class="rf-label">Groq API Key</label>
-          <input id="rf-settings-groq-key" class="rf-input" type="password" placeholder="gsk_…  (get free key at console.groq.com)">
-        </div>
-        <div style="font-size:10px;color:#64748B;margin-top:4px;">Get a free key at <strong>console.groq.com</strong> → API Keys → Create new key</div>
-      </div>
       <button id="rf-settings-save-btn" class="rf-btn-primary" style="margin-bottom:12px;">Save Settings</button>
       <div class="rf-settings-group">
         <div class="rf-settings-group-title">Templates</div>
