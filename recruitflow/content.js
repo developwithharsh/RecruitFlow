@@ -145,11 +145,11 @@
         <span>📧</span>
         <p>A 6-digit code was sent to<br><strong id="rf-otp-email-display"></strong></p>
       </div>
-      <!-- Shown when email sending fails — OTP displayed directly in sidebar -->
-      <div id="rf-otp-inline-box" style="display:none;background:#EFF6FF;border:2px dashed #2563EB;border-radius:10px;padding:14px;text-align:center;margin-bottom:4px;">
-        <p style="font-size:11px;color:#1D4ED8;margin:0 0 6px;font-weight:600;">📬 Email not configured — your OTP is:</p>
-        <div id="rf-otp-inline-code" style="font-size:28px;font-weight:700;letter-spacing:8px;color:#2563EB;font-family:monospace;"></div>
-        <p style="font-size:10px;color:#64748B;margin:6px 0 0;">Enter this code below to verify</p>
+      <!-- Verification code shown inline when email is not configured -->
+      <div id="rf-otp-inline-box" style="display:none;background:#F0FDF4;border:2px solid #86EFAC;border-radius:12px;padding:14px;text-align:center;margin-bottom:8px;">
+        <p style="font-size:10px;color:#059669;margin:0 0 8px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;">Verification Code</p>
+        <div id="rf-otp-inline-code" style="font-size:30px;font-weight:800;letter-spacing:10px;color:#065F46;font-family:monospace;background:#DCFCE7;border-radius:8px;padding:8px 0;margin-bottom:6px;"></div>
+        <p style="font-size:11px;color:#374151;margin:0;">Enter this code below to verify your account</p>
       </div>
       <div class="rf-field-group">
         <label class="rf-label">Enter OTP</label>
@@ -250,15 +250,19 @@
   <!-- ── MESSAGE PANEL ── -->
   <div class="rf-panel" id="rf-panel-message">
     <div class="rf-panel-scroll">
-      <div class="rf-profile-banner" id="rf-profile-banner">
+      <div class="rf-profile-banner" id="rf-profile-banner" style="display:none;">
         <div class="rf-profile-banner-top">
           <div>
-            <div class="rf-profile-name" id="rf-banner-name">Reading profile…</div>
+            <div class="rf-profile-name" id="rf-banner-name"></div>
             <div class="rf-profile-role" id="rf-banner-role"></div>
             <div class="rf-profile-location" id="rf-banner-location"></div>
           </div>
           <button id="rf-reread-btn" class="rf-reread-btn">↺ Re-read</button>
         </div>
+      </div>
+      <!-- Shown on non-profile pages instead of the banner -->
+      <div id="rf-no-profile-hint" style="background:#FFF7ED;border:1.5px solid #FED7AA;border-radius:10px;margin:10px 12px 0;padding:10px 12px;font-size:11px;color:#92400E;display:none;">
+        <strong>Navigate to a candidate's LinkedIn profile</strong> (/in/username) and click Re-read to load their details.
       </div>
       <div class="rf-section">
         <label class="rf-label">Tone</label>
@@ -300,23 +304,19 @@
     </div>
     <!-- Action panel pinned to bottom -->
     <div class="rf-send-panel">
-      <div style="display:flex;gap:6px;width:100%;">
-        <button id="rf-save-to-jd-btn" class="rf-btn-secondary" style="flex:1;">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
-          </svg>
-          Save to JD
-        </button>
-        <button id="rf-copy-btn" class="rf-btn-primary" style="flex:1;">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-          </svg>
-          Copy
-        </button>
+      <button id="rf-save-to-jd-btn" class="rf-btn-secondary" style="width:100%;margin-bottom:6px;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
+        </svg>
+        Save Message to JD
+      </button>
+      <div id="rf-rf-hint" style="background:#EFF6FF;border:1.5px solid #BFDBFE;border-radius:9px;padding:9px 12px;display:flex;align-items:center;gap:9px;">
+        <div style="background:#2563EB;color:#fff;width:26px;height:26px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:10px;flex-shrink:0;">RF</div>
+        <div style="font-size:11px;color:#1E40AF;line-height:1.4;">Open a LinkedIn chat, click the <strong>RF</strong> button next to Send, pick your JD and send instantly.</div>
       </div>
-      <div class="rf-limit-bar-wrap">
+      <div class="rf-limit-bar-wrap" style="margin-top:8px;">
         <div class="rf-limit-bar-label">
-          <span><span id="rf-limit-count">0</span> / <span id="rf-limit-max">50</span> messages today</span>
+          <span><span id="rf-limit-count">0</span> / <span id="rf-limit-max">3</span> messages today</span>
         </div>
         <div class="rf-limit-bar-track">
           <div class="rf-limit-bar-fill" id="rf-limit-bar-fill" style="width:0%"></div>
@@ -535,12 +535,24 @@
   }
 
   function updateBanner(profile) {
-    if (!profile) return;
+    const banner  = document.getElementById('rf-profile-banner');
+    const hint    = document.getElementById('rf-no-profile-hint');
+    const isProfilePage = /linkedin\.com\/in\//.test(window.location.href);
+
+    if (!isProfilePage || !profile || !profile.name) {
+      if (banner) banner.style.display = 'none';
+      if (hint)   hint.style.display   = isProfilePage ? 'none' : 'block';
+      return;
+    }
+
+    if (banner) banner.style.display = '';
+    if (hint)   hint.style.display   = 'none';
+
     const n = document.getElementById('rf-banner-name');
     const r = document.getElementById('rf-banner-role');
     const l = document.getElementById('rf-banner-location');
     const h = document.getElementById('rf-header-name');
-    if (n) n.textContent = profile.name || 'Unknown';
+    if (n) n.textContent = profile.name;
     if (r) r.textContent = profile.role ? `${profile.role}${profile.company ? ' @ '+profile.company:''}` : '';
     if (l) l.textContent = profile.location || '';
     if (h) h.textContent = (profile.name || '').split(' ')[0];
@@ -869,22 +881,26 @@
   }
 
   function _doInjectRFButtons() {
-    // Find every visible LinkedIn Send button and place our RF button right before it
     document.querySelectorAll('button').forEach(sendBtn => {
-      // Skip anything inside our own sidebar
       if (sendBtn.closest('#recruitflow-sidebar-container')) return;
 
-      const ariaLabel = (sendBtn.getAttribute('aria-label') || '').toLowerCase().trim();
-      const visibleText = (sendBtn.innerText || '').toLowerCase().trim();
-      const isSend = ariaLabel === 'send' || ariaLabel === 'send message' ||
-                     visibleText === 'send' || visibleText === 'send message';
+      const ariaLabel   = (sendBtn.getAttribute('aria-label') || '').trim();
+      const visibleText = (sendBtn.innerText || '').trim();
+      const ariaLower   = ariaLabel.toLowerCase();
+      const textLower   = visibleText.toLowerCase();
+
+      const isSend = ariaLower === 'send' || ariaLower === 'send message' ||
+                     ariaLower.startsWith('send a message') ||
+                     textLower === 'send' || textLower === 'send message' ||
+                     // LinkedIn messaging overlay send button (no text, just icon)
+                     (sendBtn.classList.contains('msg-form__send-button')) ||
+                     (sendBtn.closest('.msg-form__footer') && sendBtn.tagName === 'BUTTON' &&
+                       !sendBtn.closest('.msg-form__option-menu'));
       if (!isSend) return;
 
-      // Must be visible (has layout)
       const rect = sendBtn.getBoundingClientRect();
       if (rect.width === 0 && rect.height === 0) return;
 
-      // Skip if we already injected next to this send button
       const prev = sendBtn.previousElementSibling;
       if (prev && prev.classList.contains('rf-toolbar-btn')) return;
 

@@ -592,18 +592,29 @@
 
   // ── Profile banner ───────────────────────────────────────────────────────
   function updateProfileBanner(profile) {
-    if (!profile) return;
-    currentProfile = profile;
-    const firstName = (profile.name || '').split(' ')[0];
-    const nameEl   = document.getElementById('rf-banner-name');
-    const roleEl   = document.getElementById('rf-banner-role');
-    const locEl    = document.getElementById('rf-banner-location');
-    const hdrEl    = document.getElementById('rf-header-name');
-    if (nameEl) nameEl.textContent = profile.name || 'Unknown';
+    currentProfile = profile || null;
+    const banner  = document.getElementById('rf-profile-banner');
+    const hint    = document.getElementById('rf-no-profile-hint');
+    const isProfilePage = /linkedin\.com\/in\//.test(window.location.href);
+
+    if (!isProfilePage || !profile || !profile.name) {
+      if (banner) banner.style.display = 'none';
+      if (hint)   hint.style.display   = (isProfilePage ? 'none' : 'block');
+      return;
+    }
+
+    if (banner) banner.style.display = '';
+    if (hint)   hint.style.display   = 'none';
+
+    const nameEl = document.getElementById('rf-banner-name');
+    const roleEl = document.getElementById('rf-banner-role');
+    const locEl  = document.getElementById('rf-banner-location');
+    const hdrEl  = document.getElementById('rf-header-name');
+    if (nameEl) nameEl.textContent = profile.name;
     if (roleEl) roleEl.textContent = profile.role
-      ? `${profile.role}${profile.company ? ' @ ' + profile.company : ''}` : '—';
+      ? `${profile.role}${profile.company ? ' @ ' + profile.company : ''}` : '';
     if (locEl)  locEl.textContent  = profile.location || '';
-    if (hdrEl)  hdrEl.textContent  = firstName || '';
+    if (hdrEl)  hdrEl.textContent  = (profile.name || '').split(' ')[0];
   }
 
   // ── Template / JD selects ────────────────────────────────────────────────
@@ -1017,30 +1028,6 @@
       }
     });
 
-    // Copy message to clipboard — user then clicks RF button in LinkedIn chat to paste & send
-    document.getElementById('rf-copy-btn')?.addEventListener('click', async () => {
-      const activeSubTab = document.querySelector('.rf-sub-tab-btn.active')?.dataset.sub || 'template';
-      const msgText = activeSubTab === 'ai'
-        ? document.getElementById('rf-ai-message-text')?.value?.trim()
-        : document.getElementById('rf-message-preview')?.value?.trim();
-
-      if (!msgText) { showToast('Write or generate a message first', 'warning'); return; }
-
-      // Enforce limits
-      const limitStatus = await getLimitStatus();
-      if (limitStatus.blocked) {
-        if (!limitStatus.isPro) { showUpgradeOverlay(); }
-        else { showToast(`Daily limit of ${limitStatus.limit} messages reached. Resume tomorrow.`, 'warning'); }
-        return;
-      }
-
-      try {
-        await navigator.clipboard.writeText(msgText);
-        showToast('Copied! Now click the RF button in any LinkedIn chat to send.', 'success');
-      } catch (_) {
-        showToast('Copy failed — select text manually.', 'error');
-      }
-    });
 
     // Save message to JD — show picker modal
     document.getElementById('rf-save-to-jd-btn')?.addEventListener('click', async () => {
@@ -1079,7 +1066,9 @@
       </div>
     `;
 
-    document.body.appendChild(modal);
+    // Append inside sidebar container so it appears above it
+    const sidebar = document.getElementById('recruitflow-sidebar-container') || document.body;
+    sidebar.appendChild(modal);
     modal.querySelector('#rf-picker-close').addEventListener('click', () => modal.remove());
     modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
 
@@ -1099,9 +1088,10 @@
         if (idx > -1) {
           allJDs[idx].savedMessage = msgText;
           await storageSet({ recruitflow_jds: allJDs });
-          showToast(`Message saved to "${jd.title}"`, 'success');
           modal.remove();
-          renderJDCards();
+          await renderJDCards();
+          showToast(`Saved to "${jd.title}" — see JD tab`, 'success');
+          switchTab('jd');
         }
       });
       list.appendChild(item);
@@ -1308,11 +1298,12 @@
             <input id="rf-ob-company" type="text" class="rf-input" placeholder="e.g. TechHire Solutions" autocomplete="organization">
           </div>
           <div class="rf-field-group">
-            <label class="rf-label">Daily message limit</label>
+            <label class="rf-label">Choose your plan</label>
             <div class="rf-limit-options" id="rf-ob-limit-options">
-              <button class="rf-limit-opt" data-val="20">20 / day<br><span>Conservative</span></button>
-              <button class="rf-limit-opt rf-limit-opt-active" data-val="50">50 / day<br><span>Recommended</span></button>
-              <button class="rf-limit-opt" data-val="80">80 / day<br><span>Aggressive</span></button>
+              <button class="rf-limit-opt rf-limit-opt-active" data-val="3" data-plan="free">Free<br><span>3/day</span></button>
+              <button class="rf-limit-opt" data-val="20" data-plan="starter">Starter<br><span>₹499/mo</span></button>
+              <button class="rf-limit-opt" data-val="50" data-plan="pro">Pro<br><span>₹999/mo</span></button>
+              <button class="rf-limit-opt" data-val="9999" data-plan="unlimited">Unlimited<br><span>₹1,999/mo</span></button>
             </div>
             <p class="rf-hint">LinkedIn's safe limit is ~50–60 messages/day</p>
           </div>
@@ -1351,13 +1342,15 @@
       sidebar.appendChild(card);
     }
 
-    // Limit option buttons
-    let selectedLimit = 50;
+    // Plan option buttons
+    let selectedLimit = 3;
+    let selectedPlan  = 'free';
     card.querySelectorAll('.rf-limit-opt').forEach(btn => {
       btn.addEventListener('click', () => {
         card.querySelectorAll('.rf-limit-opt').forEach(b => b.classList.remove('rf-limit-opt-active'));
         btn.classList.add('rf-limit-opt-active');
         selectedLimit = parseInt(btn.dataset.val);
+        selectedPlan  = btn.dataset.plan || 'free';
       });
     });
 
@@ -1393,9 +1386,13 @@
         }
       });
 
-      // Also update usage daily limit
+      // Update usage with plan selection
       const usage = await getUsage();
       usage.daily_limit = selectedLimit;
+      if (selectedPlan !== 'free') {
+        // Non-free plan selected — show upgrade overlay after onboarding
+        usage.is_pro = false; // they haven't paid yet, but store intent
+      }
       await storageSet({ recruitflow_usage: usage });
 
       // Pre-load default templates if none exist yet
@@ -1413,7 +1410,11 @@
         card.remove();
         if (tabsEl) tabsEl.style.display = '';
         await initMain();
-        showToast(`Welcome, ${name.split(' ')[0]}! Let's start recruiting 🚀`, 'success');
+        showToast(`Welcome, ${name.split(' ')[0]}! Let's start recruiting.`, 'success');
+        // If non-free plan selected, open upgrade overlay so they can pay
+        if (selectedPlan !== 'free') {
+          setTimeout(() => showUpgradeOverlay(), 800);
+        }
       }, 400);
     });
   }
@@ -1582,10 +1583,13 @@
         const auth = await getAuth();
         const hash = await hashPassword(pendingSignupData.password);
         const accounts = auth.accounts || [];
-        accounts.push({ email: pendingSignupData.email, name: pendingSignupData.name, passwordHash: hash, createdAt: new Date().toISOString() });
-        await setAuth({ accounts, currentUser: { email: pendingSignupData.email, name: pendingSignupData.name }, isLoggedIn: true });
+        const newUser = { email: pendingSignupData.email, name: pendingSignupData.name, passwordHash: hash, createdAt: new Date().toISOString() };
+        accounts.push(newUser);
+        await setAuth({ accounts, currentUser: { email: newUser.email, name: newUser.name }, isLoggedIn: true });
+        // Send welcome confirmation email
+        sendOTPEmail(newUser.email, '——', newUser.name).catch(() => {});
         pendingOTP = null; pendingSignupData = null;
-        await onAuthSuccess(accounts[accounts.length - 1].name);
+        await onAuthSuccess(newUser.name);
       } catch (e) { errEl.textContent = 'Something went wrong. Try again.'; errEl.style.display = 'block'; }
       finally { btn.disabled = false; btn.textContent = 'Verify & Create Account'; }
     });
@@ -1680,7 +1684,7 @@
 
   // ── Boot when sidebar HTML is in the DOM ─────────────────────────────────
   function tryInit() {
-    if (document.getElementById('rf-copy-btn')) { init(); }
+    if (document.getElementById('rf-save-to-jd-btn')) { init(); }
     else { setTimeout(tryInit, 200); }
   }
 
