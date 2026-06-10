@@ -381,8 +381,16 @@
       </div>
       <div class="rf-settings-group">
         <div class="rf-settings-group-title">Plan</div>
-        <div style="font-size:12px;color:#64748B;margin-bottom:10px;">You are on the <strong>Free plan</strong> — 3 AI uses included.</div>
-        <button class="rf-btn-ai" disabled style="opacity:.6;cursor:not-allowed;">✦ Upgrade to Pro — Coming Soon</button>
+        <div id="rf-plan-status-text" style="font-size:12px;color:#64748B;margin-bottom:10px;">You are on the <strong>Free plan</strong> — 3 messages &amp; 3 AI uses per day.</div>
+        <button id="rf-open-upgrade-btn" class="rf-btn-ai" style="margin-bottom:8px;">✦ Upgrade to Pro</button>
+        <div id="rf-license-section" style="display:none;">
+          <div class="rf-activation-label" style="margin-top:8px;">Enter activation key to upgrade:</div>
+          <div class="rf-activation-row">
+            <input id="rf-settings-activation-key" class="rf-input" type="text" placeholder="XXXX-XXXX-XXXX-XXXX">
+            <button id="rf-settings-activation-submit" class="rf-btn-primary">Activate</button>
+          </div>
+          <div id="rf-settings-activation-msg" class="rf-activation-msg"></div>
+        </div>
       </div>
       <div class="rf-settings-group" style="border-color:#DC2626 !important;">
         <div class="rf-settings-group-title" style="color:#DC2626 !important;">Danger Zone</div>
@@ -417,16 +425,63 @@
   <!-- Upgrade overlay -->
   <div class="rf-upgrade-overlay" id="rf-upgrade-overlay">
     <div class="rf-upgrade-card">
-      <span class="rf-upgrade-icon">🔒</span>
-      <div class="rf-upgrade-title">Free limit reached</div>
-      <div class="rf-upgrade-sub">You've used all 3 free AI generations</div>
-      <div class="rf-upgrade-price">₹999<span style="font-size:13px;font-weight:400;color:#64748B;">/month</span></div>
-      <ul class="rf-upgrade-features">
-        <li>Unlimited AI messages</li><li>Unlimited templates</li>
-        <li>Unlimited tracking</li><li>PDF uploads</li><li>JD Optimizer</li>
-      </ul>
-      <button class="rf-btn-ai" disabled style="opacity:.6;margin-bottom:8px;">✦ Upgrade to Pro — Coming Soon</button>
-      <button class="rf-btn-secondary" id="rf-upgrade-dismiss">Maybe Later</button>
+      <button class="rf-upgrade-close" id="rf-upgrade-dismiss">✕</button>
+      <span class="rf-upgrade-icon">⚡</span>
+      <div class="rf-upgrade-title">Upgrade RecruitFlow</div>
+      <div class="rf-upgrade-sub">You've reached your free daily limit. Pick a plan to continue.</div>
+
+      <!-- Plan cards -->
+      <div class="rf-plan-grid">
+        <!-- Starter -->
+        <div class="rf-plan-card" data-plan="starter">
+          <div class="rf-plan-name">Starter</div>
+          <div class="rf-plan-price">₹499<span>/mo</span></div>
+          <ul class="rf-plan-features">
+            <li>✓ 20 messages/day</li>
+            <li>✓ 20 AI uses/day</li>
+            <li>✓ All templates</li>
+            <li>✓ JD Optimizer</li>
+          </ul>
+          <button class="rf-plan-btn" data-plan="starter">Get Starter</button>
+        </div>
+        <!-- Pro -->
+        <div class="rf-plan-card rf-plan-popular" data-plan="pro">
+          <div class="rf-plan-badge">Most Popular</div>
+          <div class="rf-plan-name">Pro</div>
+          <div class="rf-plan-price">₹999<span>/mo</span></div>
+          <ul class="rf-plan-features">
+            <li>✓ 50 messages/day</li>
+            <li>✓ 50 AI uses/day</li>
+            <li>✓ Priority support</li>
+            <li>✓ PDF uploads</li>
+          </ul>
+          <button class="rf-plan-btn rf-plan-btn-primary" data-plan="pro">Get Pro</button>
+        </div>
+        <!-- Unlimited -->
+        <div class="rf-plan-card" data-plan="unlimited">
+          <div class="rf-plan-name">Unlimited</div>
+          <div class="rf-plan-price">₹1,999<span>/mo</span></div>
+          <ul class="rf-plan-features">
+            <li>✓ Unlimited messages</li>
+            <li>✓ Unlimited AI</li>
+            <li>✓ Team features</li>
+            <li>✓ Dedicated support</li>
+          </ul>
+          <button class="rf-plan-btn" data-plan="unlimited">Get Unlimited</button>
+        </div>
+      </div>
+
+      <!-- Activation key entry -->
+      <div class="rf-activation-section">
+        <div class="rf-activation-label">Already paid? Enter your activation key:</div>
+        <div class="rf-activation-row">
+          <input id="rf-activation-key" class="rf-input" type="text" placeholder="XXXX-XXXX-XXXX-XXXX">
+          <button id="rf-activation-submit" class="rf-btn-primary">Activate</button>
+        </div>
+        <div id="rf-activation-msg" class="rf-activation-msg"></div>
+      </div>
+
+      <button class="rf-btn-secondary" id="rf-upgrade-dismiss-2" style="margin-top:8px;width:100%;">Maybe Later</button>
     </div>
   </div>
 

@@ -330,7 +330,8 @@
     const usage = await getUsage();
     if (usage.last_reset_date !== new Date().toDateString()) {
       usage.daily_messages_sent = 0;
-      usage.free_messages_sent = 0;  // free tier resets daily too
+      usage.free_messages_sent = 0;
+      usage.ai_uses_today = 0;
       usage.last_reset_date = new Date().toDateString();
       await storageSet({ recruitflow_usage: usage });
     }
@@ -379,7 +380,10 @@
 
   async function canUseAI() {
     const usage = await checkAndResetDay();
-    if (usage.is_pro) return true;
+    if (usage.is_pro) {
+      const aiLimit = usage.ai_daily_limit || 9999;
+      return (usage.ai_uses_today || 0) < aiLimit;
+    }
     // Free users: blocked if they've hit daily message limit OR AI limit
     const msgBlocked = (usage.daily_messages_sent || 0) >= FREE_MSG_LIMIT;
     const aiBlocked  = (usage.ai_uses_total || 0) >= FREE_AI_LIMIT;
@@ -388,7 +392,11 @@
 
   async function getAIUsesLeft() {
     const usage = await checkAndResetDay();
-    if (usage.is_pro) return '∞';
+    if (usage.is_pro) {
+      const aiLimit = usage.ai_daily_limit || 9999;
+      if (aiLimit >= 9999) return '∞';
+      return Math.max(0, aiLimit - (usage.ai_uses_today || 0));
+    }
     if ((usage.daily_messages_sent || 0) >= FREE_MSG_LIMIT) return 0;
     return Math.max(0, FREE_AI_LIMIT - (usage.ai_uses_total || 0));
   }
@@ -410,10 +418,142 @@
     setTimeout(() => t.remove(), 3500);
   }
 
+  // ── Razorpay payment links (replace with your live links from Razorpay dashboard) ─
+  const RAZORPAY_LINKS = {
+    starter:   'https://rzp.io/l/recruitflow-starter',
+    pro:       'https://rzp.io/l/recruitflow-pro',
+    unlimited: 'https://rzp.io/l/recruitflow-unlimited'
+  };
+
+  // Plan configs activated after payment
+  const PLAN_CONFIGS = {
+    starter:   { daily_limit: 20,  ai_daily_limit: 20,  label: 'Starter' },
+    pro:       { daily_limit: 50,  ai_daily_limit: 50,  label: 'Pro' },
+    unlimited: { daily_limit: 9999, ai_daily_limit: 9999, label: 'Unlimited' }
+  };
+
+  // License key validation — keys are plan:HASH where HASH = SHA-256 of (plan + secret)
+  // To generate keys: use the key generator page (recruitflow-keygen.html)
+  const LICENSE_SECRET = 'RF2024$ecr3t!K3y';
+
+  async function validateLicenseKey(rawKey) {
+    const clean = rawKey.trim().toUpperCase();
+    const parts = clean.split('-');
+    if (parts.length < 2) return null;
+    const planCode = parts[0];   // STR / PRO / UNL
+    const keyHash  = parts.slice(1).join('');
+
+    const planMap = { STR: 'starter', PRO: 'pro', UNL: 'unlimited' };
+    const plan = planMap[planCode];
+    if (!plan) return null;
+
+    // seed = plan + secret + planCode (deterministic per plan)
+    const buf  = await crypto.subtle.digest('SHA-256',
+      new TextEncoder().encode(plan + LICENSE_SECRET + planCode));
+    const expected = Array.from(new Uint8Array(buf))
+      .map(b => b.toString(16).padStart(2,'0')).join('').substring(0, 16).toUpperCase();
+
+    if (keyHash !== expected) return null;
+    return plan;
+  }
+
+  async function activateLicense(plan) {
+    const cfg = PLAN_CONFIGS[plan];
+    if (!cfg) return false;
+    const usage = await getUsage();
+    usage.is_pro = true;
+    usage.daily_limit = cfg.daily_limit;
+    usage.ai_daily_limit = cfg.ai_daily_limit;
+    usage.plan_label = cfg.label;
+    usage.daily_messages_sent = 0;
+    await storageSet({ recruitflow_usage: usage });
+    return true;
+  }
+
   // ── Upgrade modal ────────────────────────────────────────────────────────
   function showUpgradeOverlay() {
     const el = document.getElementById('rf-upgrade-overlay');
     if (el) el.classList.add('visible');
+  }
+
+  function hideUpgradeOverlay() {
+    document.getElementById('rf-upgrade-overlay')?.classList.remove('visible');
+  }
+
+  function wireUpgradeOverlay() {
+    // Dismiss buttons
+    document.getElementById('rf-upgrade-dismiss')?.addEventListener('click', hideUpgradeOverlay);
+    document.getElementById('rf-upgrade-dismiss-2')?.addEventListener('click', hideUpgradeOverlay);
+
+    // Plan buy buttons → open Razorpay payment link in new tab
+    document.querySelectorAll('.rf-plan-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const plan = btn.dataset.plan;
+        const link = RAZORPAY_LINKS[plan];
+        if (link) {
+          window.open(link, '_blank');
+          // After opening payment, show activation key hint
+          const msg = document.getElementById('rf-activation-msg');
+          if (msg) {
+            msg.textContent = 'Complete payment then enter your activation key below.';
+            msg.className = 'rf-activation-msg';
+          }
+        }
+      });
+    });
+
+    // Activation key submit (overlay)
+    document.getElementById('rf-activation-submit')?.addEventListener('click', () =>
+      handleActivationKey(
+        document.getElementById('rf-activation-key'),
+        document.getElementById('rf-activation-msg'),
+        true
+      ));
+
+    document.getElementById('rf-activation-key')?.addEventListener('keydown', e => {
+      if (e.key === 'Enter') document.getElementById('rf-activation-submit')?.click();
+    });
+  }
+
+  async function handleActivationKey(inputEl, msgEl, closeOnSuccess) {
+    const raw = inputEl?.value?.trim();
+    if (!raw) { showMsg(msgEl, 'Enter your activation key', 'error'); return; }
+
+    showMsg(msgEl, 'Validating…', '');
+    const plan = await validateLicenseKey(raw);
+    if (!plan) {
+      showMsg(msgEl, 'Invalid key. Check your email for the correct key.', 'error');
+      return;
+    }
+
+    await activateLicense(plan);
+    showMsg(msgEl, `✓ ${PLAN_CONFIGS[plan].label} plan activated!`, 'success');
+    await refreshLimitBar();
+    await refreshAIBadge();
+    await refreshPlanStatus();
+    if (closeOnSuccess) setTimeout(hideUpgradeOverlay, 1200);
+  }
+
+  function showMsg(el, text, type) {
+    if (!el) return;
+    el.textContent = text;
+    el.className = 'rf-activation-msg' + (type ? ` ${type}` : '');
+  }
+
+  async function refreshPlanStatus() {
+    const usage = await getUsage();
+    const isPro = usage.is_pro;
+    const label = usage.plan_label || 'Pro';
+    const statusEl = document.getElementById('rf-plan-status-text');
+    const upgradeBtn = document.getElementById('rf-open-upgrade-btn');
+    if (statusEl) {
+      statusEl.innerHTML = isPro
+        ? `You are on the <strong>${label} plan</strong> — ${usage.daily_limit >= 9999 ? 'Unlimited' : usage.daily_limit + ' messages/day'}.`
+        : `You are on the <strong>Free plan</strong> — 3 messages &amp; 3 AI uses per day.`;
+    }
+    if (upgradeBtn) {
+      upgradeBtn.textContent = isPro ? '✦ Manage Plan' : '✦ Upgrade to Pro';
+    }
   }
 
   // ── AI badge refresh ─────────────────────────────────────────────────────
@@ -1027,6 +1167,17 @@
   }
 
   function wireSettingsTab() {
+    // Upgrade button in settings
+    document.getElementById('rf-open-upgrade-btn')?.addEventListener('click', showUpgradeOverlay);
+
+    // Activation key in settings tab
+    document.getElementById('rf-settings-activation-submit')?.addEventListener('click', () =>
+      handleActivationKey(
+        document.getElementById('rf-settings-activation-key'),
+        document.getElementById('rf-settings-activation-msg'),
+        false
+      ));
+
     document.getElementById('rf-settings-save-btn')?.addEventListener('click', async () => {
       const name    = document.getElementById('rf-settings-name')?.value.trim()    || '';
       const company = document.getElementById('rf-settings-company')?.value.trim() || '';
@@ -1316,10 +1467,7 @@
     document.querySelectorAll('.rf-tab-btn').forEach(btn =>
       btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
 
-    const upgradeOverlay = document.getElementById('rf-upgrade-overlay');
-    document.getElementById('rf-upgrade-dismiss')?.addEventListener('click', () =>
-      upgradeOverlay?.classList.remove('visible'));
-
+    wireUpgradeOverlay();
     wireJDTab();
     wireMessageTab();
     wireTrackerTab();
@@ -1330,7 +1478,8 @@
       renderJDCards(),
       refreshTemplateSelect(),
       refreshAIBadge(),
-      refreshLimitBar()
+      refreshLimitBar(),
+      refreshPlanStatus()
     ]);
 
     // Read profile from DOM immediately so templates fill correctly

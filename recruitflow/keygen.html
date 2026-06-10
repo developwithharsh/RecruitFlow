@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>RecruitFlow Key Generator</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 480px; margin: 60px auto; padding: 0 20px; background: #F8FAFC; }
+    h1   { font-size: 22px; margin-bottom: 4px; color: #0F172A; }
+    p    { color: #64748B; font-size: 13px; margin-bottom: 20px; }
+    label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; color: #0F172A; }
+    select { width: 100%; padding: 9px 12px; border: 1.5px solid #E2E8F0; border-radius: 8px;
+             font-size: 14px; margin-bottom: 18px; box-sizing: border-box; background: #fff; }
+    button { background: #2563EB; color: #fff; border: none; border-radius: 8px;
+             padding: 11px 20px; font-size: 14px; font-weight: 600; cursor: pointer; width: 100%; }
+    button:hover { background: #1D4ED8; }
+    #result { margin-top: 20px; background: #F0FDF4; border: 1.5px solid #86EFAC;
+              border-radius: 10px; padding: 16px; display: none; }
+    #result .key { font-family: monospace; font-size: 20px; font-weight: 700;
+                   letter-spacing: 3px; color: #065F46; word-break: break-all; margin-bottom: 6px; }
+    .plan-detail { font-size: 12px; color: #047857; margin-bottom: 12px; }
+    .copy-btn { background: #059669; margin-top: 0; }
+    .copy-btn:hover { background: #047857; }
+    .warning { background: #FEF3C7; border: 1px solid #FCD34D; border-radius: 8px;
+               padding: 10px 12px; font-size: 12px; color: #92400E; margin-bottom: 20px; }
+    .plans-table { border-collapse: collapse; width: 100%; margin-bottom: 20px; font-size: 13px; }
+    .plans-table th { background: #E2E8F0; padding: 7px 10px; text-align: left; font-weight: 600; }
+    .plans-table td { padding: 7px 10px; border-bottom: 1px solid #E2E8F0; }
+  </style>
+</head>
+<body>
+  <h1>⚡ RecruitFlow Key Generator</h1>
+  <p>Generate activation keys for customers after successful Razorpay payment.</p>
+
+  <div class="warning">⚠ Keep this page private — do NOT share with customers or upload publicly.</div>
+
+  <table class="plans-table">
+    <tr><th>Plan</th><th>Price</th><th>Limits</th></tr>
+    <tr><td>Starter</td><td>₹499/mo</td><td>20 msgs/day · 20 AI/day</td></tr>
+    <tr><td>Pro</td><td>₹999/mo</td><td>50 msgs/day · 50 AI/day</td></tr>
+    <tr><td>Unlimited</td><td>₹1,999/mo</td><td>Unlimited everything</td></tr>
+  </table>
+
+  <label>Select Plan</label>
+  <select id="plan">
+    <option value="starter">Starter — ₹499/month</option>
+    <option value="pro" selected>Pro — ₹999/month</option>
+    <option value="unlimited">Unlimited — ₹1,999/month</option>
+  </select>
+
+  <button onclick="generate()">Generate Activation Key</button>
+
+  <div id="result">
+    <div style="font-size:12px;color:#64748B;margin-bottom:6px;">Send this key to your customer:</div>
+    <div class="key" id="generated-key"></div>
+    <div class="plan-detail" id="plan-detail"></div>
+    <button class="copy-btn" onclick="copyKey()">📋 Copy Key</button>
+  </div>
+
+  <script>
+    const LICENSE_SECRET = 'RF2024$ecr3t!K3y';
+    const PLAN_CODES = { starter: 'STR', pro: 'PRO', unlimited: 'UNL' };
+    const PLAN_INFO  = {
+      starter:   '20 messages/day + 20 AI uses/day',
+      pro:       '50 messages/day + 50 AI uses/day',
+      unlimited: 'Unlimited messages + Unlimited AI'
+    };
+    let lastKey = '';
+
+    async function sha256hex(str) {
+      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+      return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+    }
+
+    async function generate() {
+      const plan = document.getElementById('plan').value;
+      const code = PLAN_CODES[plan];
+      // seed must match validateLicenseKey in sidebar.js:  plan + SECRET + planCode
+      const seed = plan + LICENSE_SECRET + code;
+      const hash = (await sha256hex(seed)).substring(0, 16).toUpperCase();
+      lastKey = `${code}-${hash}`;
+      document.getElementById('generated-key').textContent = lastKey;
+      document.getElementById('plan-detail').textContent = `Plan: ${plan.charAt(0).toUpperCase()+plan.slice(1)} — ${PLAN_INFO[plan]}`;
+      document.getElementById('result').style.display = 'block';
+    }
+
+    function copyKey() {
+      navigator.clipboard.writeText(lastKey).then(() => {
+        const btn = document.querySelector('.copy-btn');
+        btn.textContent = '✓ Copied!';
+        setTimeout(() => { btn.textContent = '📋 Copy Key'; }, 2000);
+      });
+    }
+
+    // Auto-generate on load
+    generate();
+  </script>
+</body>
+</html>

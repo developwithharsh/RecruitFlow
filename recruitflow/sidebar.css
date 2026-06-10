@@ -765,12 +765,14 @@
 .rf-upgrade-overlay {
   position: absolute !important;
   inset: 0 !important;
-  background: rgba(15,23,42,0.55) !important;
+  background: rgba(15,23,42,0.65) !important;
   display: none !important;
-  align-items: center !important;
+  align-items: flex-start !important;
   justify-content: center !important;
   z-index: 50 !important;
-  backdrop-filter: blur(2px) !important;
+  backdrop-filter: blur(3px) !important;
+  overflow-y: auto !important;
+  padding: 12px 0 !important;
 }
 
 .rf-upgrade-overlay.visible { display: flex !important; }
@@ -778,34 +780,160 @@
 .rf-upgrade-card {
   background: #FFFFFF !important;
   border-radius: 16px !important;
-  padding: 22px 18px !important;
-  margin: 14px !important;
+  padding: 18px 14px 14px !important;
+  margin: 8px 10px !important;
   text-align: center !important;
-  box-shadow: 0 4px 24px rgba(0,0,0,0.12) !important;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18) !important;
+  position: relative !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
 }
 
-.rf-upgrade-icon  { font-size: 30px !important; display: block !important; margin-bottom: 8px !important; }
+.rf-upgrade-close {
+  position: absolute !important;
+  top: 10px !important; right: 10px !important;
+  background: #F1F5F9 !important;
+  border: none !important;
+  border-radius: 50% !important;
+  width: 24px !important; height: 24px !important;
+  font-size: 11px !important;
+  cursor: pointer !important;
+  color: #64748B !important;
+  display: flex !important; align-items: center !important; justify-content: center !important;
+}
+
+.rf-upgrade-icon  { font-size: 26px !important; display: block !important; margin-bottom: 6px !important; }
 .rf-upgrade-title { font-size: 15px !important; font-weight: 700 !important; color: #0F172A !important; margin: 0 0 4px !important; }
-.rf-upgrade-sub   { font-size: 12px !important; color: #64748B !important; margin: 0 0 14px !important; }
-.rf-upgrade-price { font-size: 20px !important; font-weight: 700 !important; color: var(--rf-primary) !important; margin: 0 0 14px !important; }
+.rf-upgrade-sub   { font-size: 11px !important; color: #64748B !important; margin: 0 0 12px !important; }
 
-.rf-upgrade-features {
-  text-align: left !important;
-  list-style: none !important;
-  padding: 0 !important;
-  margin: 0 0 16px !important;
+/* ── Plan grid ────────────────────────────────────────────────────────────── */
+.rf-plan-grid {
+  display: grid !important;
+  grid-template-columns: repeat(3, 1fr) !important;
+  gap: 6px !important;
+  margin-bottom: 14px !important;
 }
 
-.rf-upgrade-features li {
-  font-size: 12px !important;
+.rf-plan-card {
+  border: 1.5px solid #E2E8F0 !important;
+  border-radius: 10px !important;
+  padding: 8px 6px !important;
+  position: relative !important;
+  text-align: center !important;
+  transition: border-color 0.2s !important;
+}
+
+.rf-plan-card:hover { border-color: var(--rf-primary) !important; }
+
+.rf-plan-popular {
+  border-color: var(--rf-primary) !important;
+  background: #EFF6FF !important;
+}
+
+.rf-plan-badge {
+  position: absolute !important;
+  top: -9px !important; left: 50% !important;
+  transform: translateX(-50%) !important;
+  background: var(--rf-primary) !important;
+  color: #fff !important;
+  font-size: 8px !important;
+  font-weight: 700 !important;
+  padding: 2px 6px !important;
+  border-radius: 20px !important;
+  white-space: nowrap !important;
+}
+
+.rf-plan-name {
+  font-size: 11px !important;
+  font-weight: 700 !important;
   color: #0F172A !important;
-  padding: 2px 0 !important;
+  margin-bottom: 3px !important;
+}
+
+.rf-plan-price {
+  font-size: 15px !important;
+  font-weight: 800 !important;
+  color: var(--rf-primary) !important;
+  margin-bottom: 6px !important;
+  line-height: 1.1 !important;
+}
+
+.rf-plan-price span {
+  font-size: 9px !important;
+  font-weight: 400 !important;
+  color: #64748B !important;
+}
+
+.rf-plan-features {
+  list-style: none !important;
+  padding: 0 !important; margin: 0 0 8px !important;
+  text-align: left !important;
+}
+
+.rf-plan-features li {
+  font-size: 9px !important;
+  color: #374151 !important;
+  padding: 1px 0 !important;
+}
+
+.rf-plan-btn {
+  width: 100% !important;
+  background: #F1F5F9 !important;
+  color: #0F172A !important;
+  border: 1.5px solid #E2E8F0 !important;
+  border-radius: 7px !important;
+  padding: 5px 4px !important;
+  font-size: 9px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  transition: all 0.2s !important;
+}
+
+.rf-plan-btn:hover { background: #E2E8F0 !important; }
+
+.rf-plan-btn-primary {
+  background: var(--rf-primary) !important;
+  color: #fff !important;
+  border-color: var(--rf-primary) !important;
+}
+
+.rf-plan-btn-primary:hover { background: var(--rf-primary-dark) !important; }
+
+/* ── Activation key ───────────────────────────────────────────────────────── */
+.rf-activation-section {
+  border-top: 1px solid #E2E8F0 !important;
+  padding-top: 10px !important;
+  margin-bottom: 8px !important;
+}
+
+.rf-activation-label {
+  font-size: 10px !important;
+  color: #64748B !important;
+  margin-bottom: 6px !important;
+  text-align: left !important;
+}
+
+.rf-activation-row {
   display: flex !important;
-  align-items: center !important;
   gap: 6px !important;
 }
 
-.rf-upgrade-features li::before { content: '✓' !important; color: #059669 !important; font-weight: 700 !important; }
+.rf-activation-row .rf-input {
+  flex: 1 !important;
+  font-size: 11px !important;
+  letter-spacing: 1px !important;
+  text-transform: uppercase !important;
+}
+
+.rf-activation-msg {
+  font-size: 10px !important;
+  margin-top: 5px !important;
+  text-align: left !important;
+  min-height: 14px !important;
+}
+
+.rf-activation-msg.success { color: #059669 !important; }
+.rf-activation-msg.error   { color: #DC2626 !important; }
 
 /* ── Notes modal ─────────────────────────────────────────────────────────── */
 .rf-notes-modal {
