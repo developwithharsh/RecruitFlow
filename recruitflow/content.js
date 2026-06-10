@@ -307,11 +307,11 @@
           </svg>
           Save to JD
         </button>
-        <button id="rf-send-btn" class="rf-btn-primary" style="flex:1;">
+        <button id="rf-copy-btn" class="rf-btn-primary" style="flex:1;">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+            <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
           </svg>
-          Send
+          Copy
         </button>
       </div>
       <div class="rf-limit-bar-wrap">
@@ -811,6 +811,20 @@
           await new Promise(r => setTimeout(r, 200));
           sent = clickLinkedInSend();
           if (sent) break;
+        }
+
+        if (sent) {
+          // Log to tracker + increment daily count via background
+          try {
+            const profileName = document.querySelector('h1.text-heading-xlarge,h1.inline.t-24,.pv-text-details__left-panel h1')?.innerText?.trim() || '';
+            const profileRole = document.querySelector('.text-body-medium.break-words')?.innerText?.trim() || '';
+            chrome.runtime.sendMessage({ type: 'LOG_SENT_MESSAGE', data: {
+              candidateName: profileName, candidateUrl: window.location.href,
+              candidateRole: profileRole, candidateCompany: '',
+              jdTitle: jd.title || '', messageSent: msg, sentAt: new Date().toISOString()
+            }});
+            chrome.runtime.sendMessage({ type: 'INCREMENT_DAILY_COUNT' });
+          } catch (_) {}
         }
 
         sendBtn.textContent      = sent ? '✓ Sent!' : '✓ Typed — press Enter';

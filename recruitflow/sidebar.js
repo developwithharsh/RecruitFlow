@@ -74,8 +74,11 @@
   }
 
   function readProfileFromDOM() {
+    // Only extract profile on LinkedIn profile pages — not messaging, feed, etc.
+    const isProfilePage = /linkedin\.com\/in\//.test(window.location.href);
+    if (!isProfilePage) return { name: '', role: '', company: '', location: '', profileUrl: window.location.href };
     return {
-      name:       _getFirst(['h1.text-heading-xlarge','h1.inline.t-24','.pv-text-details__left-panel h1','h1']),
+      name:       _getFirst(['h1.text-heading-xlarge','h1.inline.t-24','.pv-text-details__left-panel h1']),
       role:       _getFirst(['.text-body-medium.break-words','.pv-text-details__left-panel .text-body-medium','[data-field="headline"]']),
       company:    _getCompany(),
       location:   _getFirst(['.text-body-small.inline.t-black--light','.pv-text-details__left-panel .text-body-small']),
@@ -1014,8 +1017,8 @@
       }
     });
 
-    // Send message — uses direct DOM manipulation (no background hop)
-    document.getElementById('rf-send-btn')?.addEventListener('click', async () => {
+    // Copy message to clipboard — user then clicks RF button in LinkedIn chat to paste & send
+    document.getElementById('rf-copy-btn')?.addEventListener('click', async () => {
       const activeSubTab = document.querySelector('.rf-sub-tab-btn.active')?.dataset.sub || 'template';
       const msgText = activeSubTab === 'ai'
         ? document.getElementById('rf-ai-message-text')?.value?.trim()
@@ -1023,61 +1026,19 @@
 
       if (!msgText) { showToast('Write or generate a message first', 'warning'); return; }
 
-      // Enforce limits before sending
+      // Enforce limits
       const limitStatus = await getLimitStatus();
       if (limitStatus.blocked) {
-        if (!limitStatus.isPro) {
-          showUpgradeOverlay();
-        } else {
-          showToast(`Daily limit of ${limitStatus.limit} messages reached. Resume tomorrow to protect your account.`, 'warning');
-        }
+        if (!limitStatus.isPro) { showUpgradeOverlay(); }
+        else { showToast(`Daily limit of ${limitStatus.limit} messages reached. Resume tomorrow.`, 'warning'); }
         return;
       }
 
-      const btn = document.getElementById('rf-send-btn');
-      btn.disabled = true;
-      btn.innerHTML = '<span class="rf-spinner"></span> Sending…';
-
       try {
-        if (!isOnLinkedInProfile()) {
-          showToast('Go to the candidate\'s LinkedIn profile page first (/in/username), then click Send.', 'warning');
-          btn.disabled = false;
-          btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Send Message`;
-          return;
-        }
-        await sendLinkedInMessage(msgText);
-        const jd = await getActiveJD();
-        await addEntry({
-          candidateName: currentProfile?.name || '', candidateUrl: currentProfile?.profileUrl || window.location.href,
-          candidateRole: currentProfile?.role || '', candidateCompany: currentProfile?.company || '',
-          jdTitle: jd?.title || '', messageSent: msgText, sentAt: new Date().toISOString()
-        });
-        await incrementMessageCount();
-        await refreshLimitBar();
-        await refreshAIBadge();
-
-        // Post-send limit check for warnings
-        const afterStatus = await getLimitStatus();
-        if (afterStatus.blocked && afterStatus.isPro) {
-          showToast(`You've reached your daily limit of ${afterStatus.limit} messages. Great work! Resume tomorrow.`, 'warning');
-        } else if (afterStatus.blocked && !afterStatus.isPro) {
-          showToast(`Sent! You've used all ${FREE_MSG_LIMIT} free messages for today. Resets tomorrow or upgrade to Pro.`, 'warning');
-          setTimeout(() => showUpgradeOverlay(), 1500);
-        } else if (afterStatus.isLastPro) {
-          showToast(`Sent! 1 message left for today (${afterStatus.limit} daily limit).`, 'warning');
-        } else {
-          showToast(`Sent to ${currentProfile?.name || 'candidate'}!`, 'success');
-        }
-        document.getElementById('rf-message-preview').value  = '';
-        document.getElementById('rf-ai-message-text').value  = '';
-        document.getElementById('rf-ai-message-wrap').style.display = 'none';
-      } catch (e) { showToast(e.message || 'Could not send. Try manually.', 'error'); }
-      finally {
-        btn.disabled = false;
-        btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-          stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
-        </svg> Send`;
+        await navigator.clipboard.writeText(msgText);
+        showToast('Copied! Now click the RF button in any LinkedIn chat to send.', 'success');
+      } catch (_) {
+        showToast('Copy failed — select text manually.', 'error');
       }
     });
 
@@ -1459,10 +1420,24 @@
 
   // ── Main sidebar initialisation ──────────────────────────────────────────
   async function initMain() {
-    // Wire close button
-    document.getElementById('rf-close-btn')?.addEventListener('click', () => {
-      document.getElementById('recruitflow-sidebar-container')?.classList.add('collapsed');
-    });
+    // Wire close button — use capture so LinkedIn's handlers can't swallow it
+    const closeBtn = document.getElementById('rf-close-btn');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.getElementById('recruitflow-sidebar-container')?.classList.add('collapsed');
+      }, true);
+    }
+
+    // Also wire the toggle tab (arrow) to expand on click
+    const toggleTab = document.getElementById('recruitflow-sidebar-container')
+      ?.querySelector('.rf-toggle-tab');
+    if (toggleTab) {
+      toggleTab.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.getElementById('recruitflow-sidebar-container')?.classList.toggle('collapsed');
+      }, true);
+    }
 
     document.querySelectorAll('.rf-tab-btn').forEach(btn =>
       btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
@@ -1705,7 +1680,7 @@
 
   // ── Boot when sidebar HTML is in the DOM ─────────────────────────────────
   function tryInit() {
-    if (document.getElementById('rf-send-btn')) { init(); }
+    if (document.getElementById('rf-copy-btn')) { init(); }
     else { setTimeout(tryInit, 200); }
   }
 

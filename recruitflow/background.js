@@ -242,6 +242,14 @@ async function handleMessage(message, sender) {
       }
     }
 
+    case 'LOG_SENT_MESSAGE': {
+      const entries = (await chrome.storage.local.get('recruitflow_tracker')).recruitflow_tracker || [];
+      const entry = { id: 'msg_' + Date.now(), ...message.data, status: 'Sent', notes: '' };
+      entries.unshift(entry);
+      await chrome.storage.local.set({ recruitflow_tracker: entries });
+      return { success: true };
+    }
+
     case 'STORAGE_GET': {
       const result = await chrome.storage.local.get(message.key);
       return { value: result[message.key] };
