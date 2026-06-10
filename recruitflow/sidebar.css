@@ -806,85 +806,118 @@
 .rf-upgrade-title { font-size: 15px !important; font-weight: 700 !important; color: #0F172A !important; margin: 0 0 4px !important; }
 .rf-upgrade-sub   { font-size: 11px !important; color: #64748B !important; margin: 0 0 12px !important; }
 
-/* ── Plan grid ────────────────────────────────────────────────────────────── */
-.rf-plan-grid {
-  display: grid !important;
-  grid-template-columns: repeat(3, 1fr) !important;
-  gap: 6px !important;
+/* ── Plan cards (stacked, benefit-driven) ─────────────────────────────────── */
+.rf-plan-stack {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
   margin-bottom: 14px !important;
 }
 
-.rf-plan-card {
+.rf-plan-row {
   border: 1.5px solid #E2E8F0 !important;
-  border-radius: 10px !important;
-  padding: 8px 6px !important;
+  border-radius: 14px !important;
+  padding: 12px 12px 10px !important;
   position: relative !important;
-  text-align: center !important;
-  transition: border-color 0.2s !important;
+  text-align: left !important;
+  transition: border-color 0.2s, box-shadow 0.2s !important;
+  background: #fff !important;
 }
 
-.rf-plan-card:hover { border-color: var(--rf-primary) !important; }
+.rf-plan-row:hover {
+  border-color: var(--rf-primary) !important;
+  box-shadow: 0 4px 16px rgba(37,99,235,0.12) !important;
+}
 
 .rf-plan-popular {
-  border-color: var(--rf-primary) !important;
-  background: #EFF6FF !important;
+  border: 2px solid var(--rf-primary) !important;
+  background: linear-gradient(180deg, #EFF6FF 0%, #fff 60%) !important;
 }
 
 .rf-plan-badge {
   position: absolute !important;
-  top: -9px !important; left: 50% !important;
-  transform: translateX(-50%) !important;
-  background: var(--rf-primary) !important;
+  top: -10px !important; left: 14px !important;
+  background: linear-gradient(90deg, #2563EB, #7C3AED) !important;
   color: #fff !important;
-  font-size: 8px !important;
+  font-size: 9px !important;
   font-weight: 700 !important;
-  padding: 2px 6px !important;
+  padding: 3px 9px !important;
   border-radius: 20px !important;
   white-space: nowrap !important;
+  letter-spacing: .3px !important;
 }
 
+.rf-plan-row-head {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  margin-bottom: 8px !important;
+}
+
+.rf-plan-emoji { font-size: 20px !important; flex-shrink: 0 !important; }
+
+.rf-plan-row-title { flex: 1 !important; min-width: 0 !important; }
+
 .rf-plan-name {
-  font-size: 11px !important;
-  font-weight: 700 !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
   color: #0F172A !important;
-  margin-bottom: 3px !important;
+  line-height: 1.2 !important;
+}
+
+.rf-plan-tagline {
+  font-size: 10px !important;
+  color: #64748B !important;
+  line-height: 1.3 !important;
 }
 
 .rf-plan-price {
-  font-size: 15px !important;
+  font-size: 16px !important;
   font-weight: 800 !important;
   color: var(--rf-primary) !important;
-  margin-bottom: 6px !important;
   line-height: 1.1 !important;
+  flex-shrink: 0 !important;
 }
 
 .rf-plan-price span {
-  font-size: 9px !important;
+  font-size: 10px !important;
   font-weight: 400 !important;
   color: #64748B !important;
 }
 
 .rf-plan-features {
   list-style: none !important;
-  padding: 0 !important; margin: 0 0 8px !important;
+  padding: 0 !important; margin: 0 0 10px !important;
   text-align: left !important;
 }
 
 .rf-plan-features li {
-  font-size: 9px !important;
+  font-size: 11px !important;
   color: #374151 !important;
-  padding: 1px 0 !important;
+  padding: 2px 0 2px 16px !important;
+  position: relative !important;
+  line-height: 1.45 !important;
 }
+
+.rf-plan-features li::before {
+  content: '✓' !important;
+  position: absolute !important;
+  left: 0 !important;
+  color: #059669 !important;
+  font-weight: 700 !important;
+}
+
+.rf-plan-features li strong { color: #0F172A !important; }
 
 .rf-plan-btn {
   width: 100% !important;
   background: #F1F5F9 !important;
   color: #0F172A !important;
   border: 1.5px solid #E2E8F0 !important;
-  border-radius: 7px !important;
-  padding: 5px 4px !important;
-  font-size: 9px !important;
-  font-weight: 600 !important;
+  border-radius: 9px !important;
+  padding: 8px 10px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
   cursor: pointer !important;
   transition: all 0.2s !important;
 }
@@ -892,12 +925,12 @@
 .rf-plan-btn:hover { background: #E2E8F0 !important; }
 
 .rf-plan-btn-primary {
-  background: var(--rf-primary) !important;
+  background: linear-gradient(90deg, #2563EB, #4F46E5) !important;
   color: #fff !important;
-  border-color: var(--rf-primary) !important;
+  border-color: transparent !important;
 }
 
-.rf-plan-btn-primary:hover { background: var(--rf-primary-dark) !important; }
+.rf-plan-btn-primary:hover { filter: brightness(1.08) !important; }
 
 /* ── Activation key ───────────────────────────────────────────────────────── */
 .rf-activation-section {
@@ -1088,7 +1121,7 @@
 
 .rf-limit-options {
   display: grid !important;
-  grid-template-columns: repeat(3, 1fr) !important;
+  grid-template-columns: repeat(2, 1fr) !important;
   gap: 6px !important;
 }
 

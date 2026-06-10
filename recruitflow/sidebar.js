@@ -1342,15 +1342,23 @@
       sidebar.appendChild(card);
     }
 
-    // Plan option buttons
+    // Plan option buttons — CTA text follows the selected plan
     let selectedLimit = 3;
     let selectedPlan  = 'free';
+    const ctaLabels = {
+      free:      '✦ Get Started — It\'s Free',
+      starter:   '✦ Continue with Starter — ₹499/mo',
+      pro:       '✦ Continue with Pro — ₹999/mo',
+      unlimited: '✦ Continue with Unlimited — ₹1,999/mo'
+    };
     card.querySelectorAll('.rf-limit-opt').forEach(btn => {
       btn.addEventListener('click', () => {
         card.querySelectorAll('.rf-limit-opt').forEach(b => b.classList.remove('rf-limit-opt-active'));
         btn.classList.add('rf-limit-opt-active');
         selectedLimit = parseInt(btn.dataset.val);
         selectedPlan  = btn.dataset.plan || 'free';
+        const cta = card.querySelector('#rf-ob-submit');
+        if (cta) cta.textContent = ctaLabels[selectedPlan] || ctaLabels.free;
       });
     });
 

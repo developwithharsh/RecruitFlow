@@ -426,48 +426,67 @@
   <div class="rf-upgrade-overlay" id="rf-upgrade-overlay">
     <div class="rf-upgrade-card">
       <button class="rf-upgrade-close" id="rf-upgrade-dismiss">✕</button>
-      <span class="rf-upgrade-icon">⚡</span>
-      <div class="rf-upgrade-title">Upgrade RecruitFlow</div>
-      <div class="rf-upgrade-sub">You've reached your free daily limit. Pick a plan to continue.</div>
+      <span class="rf-upgrade-icon">🚀</span>
+      <div class="rf-upgrade-title">Supercharge Your Recruiting</div>
+      <div class="rf-upgrade-sub">Recruiters on paid plans reach <strong>10× more candidates</strong> and fill roles faster. Pick the plan that fits your hiring pace.</div>
 
-      <!-- Plan cards -->
-      <div class="rf-plan-grid">
+      <!-- Plan cards — stacked, benefit-driven -->
+      <div class="rf-plan-stack">
+
         <!-- Starter -->
-        <div class="rf-plan-card" data-plan="starter">
-          <div class="rf-plan-name">Starter</div>
-          <div class="rf-plan-price">₹499<span>/mo</span></div>
+        <div class="rf-plan-row" data-plan="starter">
+          <div class="rf-plan-row-head">
+            <span class="rf-plan-emoji">🌱</span>
+            <div class="rf-plan-row-title">
+              <div class="rf-plan-name">Starter</div>
+              <div class="rf-plan-tagline">For recruiters hiring 1–2 roles</div>
+            </div>
+            <div class="rf-plan-price">₹499<span>/mo</span></div>
+          </div>
           <ul class="rf-plan-features">
-            <li>✓ 20 messages/day</li>
-            <li>✓ 20 AI uses/day</li>
-            <li>✓ All templates</li>
-            <li>✓ JD Optimizer</li>
+            <li><strong>20 personalised messages daily</strong> — 6× more outreach than free</li>
+            <li><strong>20 AI generations daily</strong> — every message tailored to the candidate</li>
+            <li>JD Optimizer & unlimited templates</li>
           </ul>
-          <button class="rf-plan-btn" data-plan="starter">Get Starter</button>
+          <button class="rf-plan-btn" data-plan="starter">Start with Starter →</button>
         </div>
+
         <!-- Pro -->
-        <div class="rf-plan-card rf-plan-popular" data-plan="pro">
-          <div class="rf-plan-badge">Most Popular</div>
-          <div class="rf-plan-name">Pro</div>
-          <div class="rf-plan-price">₹999<span>/mo</span></div>
+        <div class="rf-plan-row rf-plan-popular" data-plan="pro">
+          <div class="rf-plan-badge">⭐ Most Popular</div>
+          <div class="rf-plan-row-head">
+            <span class="rf-plan-emoji">⚡</span>
+            <div class="rf-plan-row-title">
+              <div class="rf-plan-name">Pro</div>
+              <div class="rf-plan-tagline">For agency & in-house recruiters</div>
+            </div>
+            <div class="rf-plan-price">₹999<span>/mo</span></div>
+          </div>
           <ul class="rf-plan-features">
-            <li>✓ 50 messages/day</li>
-            <li>✓ 50 AI uses/day</li>
-            <li>✓ Priority support</li>
-            <li>✓ PDF uploads</li>
+            <li><strong>50 messages daily</strong> — fill your pipeline every single day</li>
+            <li><strong>50 AI generations daily</strong> + PDF JD uploads</li>
+            <li>Full outreach tracker with CSV export</li>
+            <li>Priority support on WhatsApp</li>
           </ul>
-          <button class="rf-plan-btn rf-plan-btn-primary" data-plan="pro">Get Pro</button>
+          <button class="rf-plan-btn rf-plan-btn-primary" data-plan="pro">Go Pro — Recruit Faster →</button>
         </div>
+
         <!-- Unlimited -->
-        <div class="rf-plan-card" data-plan="unlimited">
-          <div class="rf-plan-name">Unlimited</div>
-          <div class="rf-plan-price">₹1,999<span>/mo</span></div>
+        <div class="rf-plan-row" data-plan="unlimited">
+          <div class="rf-plan-row-head">
+            <span class="rf-plan-emoji">👑</span>
+            <div class="rf-plan-row-title">
+              <div class="rf-plan-name">Unlimited</div>
+              <div class="rf-plan-tagline">For hiring teams that never stop</div>
+            </div>
+            <div class="rf-plan-price">₹1,999<span>/mo</span></div>
+          </div>
           <ul class="rf-plan-features">
-            <li>✓ Unlimited messages</li>
-            <li>✓ Unlimited AI</li>
-            <li>✓ Team features</li>
-            <li>✓ Dedicated support</li>
+            <li><strong>Unlimited messages & AI</strong> — zero caps, zero friction</li>
+            <li>Everything in Pro, plus team features</li>
+            <li>Dedicated support — we answer in hours, not days</li>
           </ul>
-          <button class="rf-plan-btn" data-plan="unlimited">Get Unlimited</button>
+          <button class="rf-plan-btn" data-plan="unlimited">Go Unlimited →</button>
         </div>
       </div>
 
@@ -649,8 +668,8 @@
     return false;
   }
 
-  function buildQuickMessage(jd, recruiterName, recruiterCompany) {
-    // Read the RECIPIENT name from the chat header (not from message bubbles)
+  // Read the RECIPIENT name from the chat header (not from message bubbles)
+  function getChatRecipientName(recruiterName) {
     const headerName =
       // Overlay chat bubble header (bottom-right pop-up chat)
       document.querySelector('.msg-overlay-bubble-header__title')?.innerText?.trim() ||
@@ -664,14 +683,17 @@
       document.querySelector('[class*="msg"][class*="header"] a[href*="/in/"]')?.getAttribute('aria-label')?.trim() ||
       // Last resort: first link in the thread heading that goes to a profile
       document.querySelector('.msg-thread__link-to-profile')?.innerText?.trim() ||
+      // Profile page h1 (when chatting from a profile page overlay)
+      document.querySelector('h1.text-heading-xlarge,h1.inline.t-24,.pv-text-details__left-panel h1')?.innerText?.trim() ||
       '';
 
     // Safety check: if we got the recruiter's own name, discard it
     const ownName = recruiterName?.split(' ')[0]?.toLowerCase() || '';
-    const candidate = (headerName && headerName.toLowerCase().split(' ')[0] !== ownName)
-      ? headerName
-      : '';
+    return (headerName && headerName.toLowerCase().split(' ')[0] !== ownName) ? headerName : '';
+  }
 
+  function buildQuickMessage(jd, recruiterName, recruiterCompany) {
+    const candidate = getChatRecipientName(recruiterName);
     const firstName = (candidate || 'there').split(' ')[0];
     const jdTitle   = jd.title || 'an exciting opportunity';
     return `Hi ${firstName},\n\nI came across your profile and wanted to reach out about a ${jdTitle} role that I think could be a great fit for you.\n\nWould you be open to a quick 10-minute call this week?\n\nBest regards,\n${recruiterName}${recruiterCompany ? ', ' + recruiterCompany : ''}`;
@@ -828,10 +850,12 @@
         if (sent) {
           // Log to tracker + increment daily count via background
           try {
-            const profileName = document.querySelector('h1.text-heading-xlarge,h1.inline.t-24,.pv-text-details__left-panel h1')?.innerText?.trim() || '';
-            const profileRole = document.querySelector('.text-body-medium.break-words')?.innerText?.trim() || '';
+            const candidateName = getChatRecipientName(recruiterName) || 'LinkedIn contact';
+            const profileRole = /linkedin\.com\/in\//.test(window.location.href)
+              ? (document.querySelector('.text-body-medium.break-words')?.innerText?.trim() || '')
+              : '';
             chrome.runtime.sendMessage({ type: 'LOG_SENT_MESSAGE', data: {
-              candidateName: profileName, candidateUrl: window.location.href,
+              candidateName, candidateUrl: window.location.href,
               candidateRole: profileRole, candidateCompany: '',
               jdTitle: jd.title || '', messageSent: msg, sentAt: new Date().toISOString()
             }});
@@ -883,26 +907,24 @@
   function _doInjectRFButtons() {
     document.querySelectorAll('button').forEach(sendBtn => {
       if (sendBtn.closest('#recruitflow-sidebar-container')) return;
+      // Never match our own injected buttons
+      if (sendBtn.classList.contains('rf-toolbar-btn')) return;
 
-      const ariaLabel   = (sendBtn.getAttribute('aria-label') || '').trim();
-      const visibleText = (sendBtn.innerText || '').trim();
-      const ariaLower   = ariaLabel.toLowerCase();
-      const textLower   = visibleText.toLowerCase();
+      const ariaLower = (sendBtn.getAttribute('aria-label') || '').toLowerCase().trim();
+      const textLower = (sendBtn.innerText || '').toLowerCase().trim();
 
+      // Strict: only real Send buttons
       const isSend = ariaLower === 'send' || ariaLower === 'send message' ||
-                     ariaLower.startsWith('send a message') ||
                      textLower === 'send' || textLower === 'send message' ||
-                     // LinkedIn messaging overlay send button (no text, just icon)
-                     (sendBtn.classList.contains('msg-form__send-button')) ||
-                     (sendBtn.closest('.msg-form__footer') && sendBtn.tagName === 'BUTTON' &&
-                       !sendBtn.closest('.msg-form__option-menu'));
+                     sendBtn.classList.contains('msg-form__send-button');
       if (!isSend) return;
 
       const rect = sendBtn.getBoundingClientRect();
       if (rect.width === 0 && rect.height === 0) return;
 
-      const prev = sendBtn.previousElementSibling;
-      if (prev && prev.classList.contains('rf-toolbar-btn')) return;
+      // Only ONE RF button per message form / footer container
+      const container = sendBtn.closest('.msg-form__footer') || sendBtn.closest('form') || sendBtn.parentNode;
+      if (container && container.querySelector('.rf-toolbar-btn')) return;
 
       const rfBtn = createRFBtn();
       sendBtn.parentNode.insertBefore(rfBtn, sendBtn);
