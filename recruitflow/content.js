@@ -260,10 +260,6 @@
           <button id="rf-reread-btn" class="rf-reread-btn">↺ Re-read</button>
         </div>
       </div>
-      <!-- Shown on non-profile pages instead of the banner -->
-      <div id="rf-no-profile-hint" style="background:#FFF7ED;border:1.5px solid #FED7AA;border-radius:10px;margin:10px 12px 0;padding:10px 12px;font-size:11px;color:#92400E;display:none;">
-        <strong>Navigate to a candidate's LinkedIn profile</strong> (/in/username) and click Re-read to load their details.
-      </div>
       <div class="rf-section">
         <label class="rf-label">Tone</label>
         <div class="rf-tone-group">
@@ -556,17 +552,14 @@
 
   function updateBanner(profile) {
     const banner  = document.getElementById('rf-profile-banner');
-    const hint    = document.getElementById('rf-no-profile-hint');
     const isProfilePage = /linkedin\.com\/in\//.test(window.location.href);
 
     if (!isProfilePage || !profile || !profile.name) {
       if (banner) banner.style.display = 'none';
-      if (hint)   hint.style.display   = isProfilePage ? 'none' : 'block';
       return;
     }
 
     if (banner) banner.style.display = '';
-    if (hint)   hint.style.display   = 'none';
 
     const n = document.getElementById('rf-banner-name');
     const r = document.getElementById('rf-banner-role');

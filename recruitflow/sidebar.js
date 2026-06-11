@@ -595,17 +595,14 @@
   function updateProfileBanner(profile) {
     currentProfile = profile || null;
     const banner  = document.getElementById('rf-profile-banner');
-    const hint    = document.getElementById('rf-no-profile-hint');
     const isProfilePage = /linkedin\.com\/in\//.test(window.location.href);
 
     if (!isProfilePage || !profile || !profile.name) {
       if (banner) banner.style.display = 'none';
-      if (hint)   hint.style.display   = (isProfilePage ? 'none' : 'block');
       return;
     }
 
     if (banner) banner.style.display = '';
-    if (hint)   hint.style.display   = 'none';
 
     const nameEl = document.getElementById('rf-banner-name');
     const roleEl = document.getElementById('rf-banner-role');
