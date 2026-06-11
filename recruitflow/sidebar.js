@@ -1133,12 +1133,9 @@
     document.getElementById('rf-settings-save-btn')?.addEventListener('click', async () => {
       const name    = document.getElementById('rf-settings-name')?.value.trim()    || '';
       const company = document.getElementById('rf-settings-company')?.value.trim() || '';
-      const limit   = parseInt(document.getElementById('rf-settings-limit')?.value) || 20;
-      const usage = await getUsage();
-      usage.daily_limit = limit;
+      // daily_limit is locked to the plan — never taken from user input
       await storageSet({
-        recruitflow_settings: { recruiter_name: name, recruiter_company: company, daily_limit: limit },
-        recruitflow_usage: usage
+        recruitflow_settings: { recruiter_name: name, recruiter_company: company }
       });
       await refreshLimitBar();
       showToast('Settings saved!', 'success');
@@ -1147,12 +1144,10 @@
     document.getElementById('rf-settings-name')?.addEventListener('blur', async () => {
       const nameEl    = document.getElementById('rf-settings-name');
       const companyEl = document.getElementById('rf-settings-company');
-      const limitEl   = document.getElementById('rf-settings-limit');
-      if (!nameEl || !companyEl || !limitEl) return;
+      if (!nameEl || !companyEl) return;
       await storageSet({ recruitflow_settings: {
         recruiter_name: nameEl.value.trim(),
-        recruiter_company: companyEl.value.trim(),
-        daily_limit: parseInt(limitEl.value) || 50
+        recruiter_company: companyEl.value.trim()
       }});
     });
 
@@ -1284,10 +1279,15 @@
         if (!s) return;
         const n = document.getElementById('rf-settings-name');
         const c = document.getElementById('rf-settings-company');
-        const l = document.getElementById('rf-settings-limit');
         if (n) n.value = s.recruiter_name    || '';
         if (c) c.value = s.recruiter_company || '';
-        if (l) l.value = s.daily_limit       || 20;
+      });
+      // Show plan-locked daily limit (read-only)
+      getUsage().then(u => {
+        const d = document.getElementById('rf-settings-limit-display');
+        if (!d) return;
+        if (!u.is_pro) d.textContent = '3 (Free)';
+        else d.textContent = (u.daily_limit >= 9999) ? 'Unlimited' : String(u.daily_limit);
       });
       renderSettingsTemplateList();
     }

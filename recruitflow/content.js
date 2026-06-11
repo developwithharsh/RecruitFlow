@@ -368,10 +368,11 @@
       </div>
       <div class="rf-settings-group">
         <div class="rf-settings-group-title">Daily Limit Guard</div>
-        <div class="rf-settings-row">
-          <label class="rf-label">Max messages per day (Pro)</label>
-          <input id="rf-settings-limit" class="rf-input" type="number" value="20" min="1" max="200">
+        <div class="rf-settings-row" style="display:flex;align-items:center;justify-content:space-between;">
+          <label class="rf-label" style="margin:0;">Messages per day</label>
+          <span id="rf-settings-limit-display" style="font-size:13px;font-weight:700;color:#2563EB;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;padding:4px 12px;">3</span>
         </div>
+        <div style="font-size:10px;color:#94A3B8;margin-top:6px;">Set by your plan — upgrade to increase your daily limit.</div>
       </div>
       <button id="rf-settings-save-btn" class="rf-btn-primary" style="margin-bottom:12px;">Save Settings</button>
       <div class="rf-settings-group">
