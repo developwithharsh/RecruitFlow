@@ -335,6 +335,7 @@
       usage.daily_messages_sent = 0;
       usage.free_messages_sent = 0;
       usage.ai_uses_today = 0;
+      usage.search_uses_today = 0;
       usage.last_reset_date = new Date().toDateString();
       await storageSet({ recruitflow_usage: usage });
     }
@@ -1198,10 +1199,36 @@
     });
   }
 
+  const FREE_SEARCH_LIMIT = 3;
+
+  async function getSearchUsesLeft() {
+    const usage = await checkAndResetDay();
+    if (usage.is_pro) return '∞';
+    return Math.max(0, FREE_SEARCH_LIMIT - (usage.search_uses_today || 0));
+  }
+
+  async function refreshSearchBadge() {
+    const left = await getSearchUsesLeft();
+    const badge = document.getElementById('rf-search-uses-badge');
+    if (badge) badge.textContent = left === '∞' ? '' : `${left} left`;
+  }
+
   function wireSearchTab() {
+    refreshSearchBadge();
+
     document.getElementById('rf-search-ai-btn')?.addEventListener('click', async () => {
       const desc = document.getElementById('rf-search-desc')?.value?.trim();
       if (!desc) { showToast('Describe the candidate first', 'warning'); return; }
+
+      // Limit check for free users
+      const usage = await checkAndResetDay();
+      if (!usage.is_pro) {
+        const searchCount = usage.search_uses_today || 0;
+        if (searchCount >= FREE_SEARCH_LIMIT) {
+          showUpgradeOverlay();
+          return;
+        }
+      }
 
       const btn = document.getElementById('rf-search-ai-btn');
       btn.disabled = true;
@@ -1217,6 +1244,10 @@
           throw new Error(result?.error || 'AI failed to generate search query');
         }
 
+        // Increment search uses
+        usage.search_uses_today = (usage.search_uses_today || 0) + 1;
+        await storageSet({ recruitflow_usage: usage });
+
         const query = result.query || '';
         const keywords = encodeURIComponent(query);
         const url = `https://www.linkedin.com/search/results/people/?keywords=${keywords}&origin=GLOBAL_SEARCH_HEADER`;
@@ -1228,11 +1259,14 @@
         document.getElementById('rf-search-go-btn').onclick = () => {
           window.open(url, '_blank');
         };
+
+        refreshSearchBadge();
       } catch (e) {
         showToast(e.message || 'Search generation failed', 'error');
       } finally {
         btn.disabled = false;
-        btn.innerHTML = '✦ Generate Search';
+        btn.innerHTML = `✦ Generate Search <span id="rf-search-uses-badge" class="rf-ai-uses-badge"></span>`;
+        refreshSearchBadge();
       }
     });
   }

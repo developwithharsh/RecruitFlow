@@ -411,7 +411,7 @@
         <label class="rf-label">Describe Your Ideal Candidate</label>
         <textarea id="rf-search-desc" class="rf-textarea" rows="4" placeholder="e.g. Senior React developer with 5+ years, startup experience, based in Bangalore or remote..."></textarea>
       </div>
-      <button id="rf-search-ai-btn" class="rf-btn-ai">✦ Generate Search</button>
+      <button id="rf-search-ai-btn" class="rf-btn-ai">✦ Generate Search <span id="rf-search-uses-badge" class="rf-ai-uses-badge"></span></button>
       <div id="rf-search-result" style="display:none;margin-top:10px;">
         <label class="rf-label">AI-Suggested Search Query</label>
         <div id="rf-search-query-box" style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:10px;font-size:12px;color:#0F172A;line-height:1.6;margin-bottom:8px;white-space:pre-wrap;"></div>
@@ -797,6 +797,7 @@
         'border-radius:10px', 'padding:11px 12px 10px', 'margin-bottom:6px'
       ].join(';');
 
+      const hasJDText = (jd.text || '').trim().length > 0;
       card.innerHTML = `
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin-bottom:4px;">
           <span style="font-weight:700;font-size:12px;color:#0F172A;line-height:1.3;flex:1;">${jd.title || 'Untitled JD'}</span>
@@ -807,6 +808,11 @@
           <div style="font-size:9px;font-weight:700;color:#2563EB;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">${templateLabel}</div>
           <div style="font-size:11px;color:#475569;line-height:1.5;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;">${msgPreview}…</div>
         </div>
+        ${hasJDText ? `
+        <label style="display:flex;align-items:center;gap:7px;cursor:pointer;margin-bottom:8px;padding:6px 8px;background:#F0FDF4;border:1px solid #BBF7D0;border-radius:7px;">
+          <input type="checkbox" class="rf-send-jd-check" style="width:14px;height:14px;accent-color:#059669;cursor:pointer;flex-shrink:0;">
+          <span style="font-size:11px;color:#065F46;font-weight:500;line-height:1.3;">Also send JD as a separate follow-up message</span>
+        </label>` : ''}
         <button class="rf-send-now-btn" style="width:100%;background:#2563EB;color:#fff;border:none;border-radius:7px;padding:8px 0;font-size:12px;font-weight:600;cursor:pointer;letter-spacing:.2px;">
           ✦ Send Message
         </button>
@@ -821,6 +827,7 @@
 
       sendBtn.addEventListener('click', async e => {
         e.stopPropagation();
+        const sendJDToo = card.querySelector('.rf-send-jd-check')?.checked || false;
         sendBtn.textContent = 'Sending…';
         sendBtn.disabled    = true;
 
@@ -861,6 +868,20 @@
             }});
             chrome.runtime.sendMessage({ type: 'INCREMENT_DAILY_COUNT' });
           } catch (_) {}
+
+          // Optionally send JD text as a second follow-up message
+          if (sendJDToo && (jd.text || '').trim()) {
+            sendBtn.textContent = 'Sending JD…';
+            await new Promise(r => setTimeout(r, 1500));
+            const composer2 = getActiveComposer();
+            if (composer2) {
+              typeIntoBox(composer2, jd.text.trim());
+              for (let i = 0; i < 15; i++) {
+                await new Promise(r => setTimeout(r, 200));
+                if (clickLinkedInSend()) break;
+              }
+            }
+          }
         }
 
         sendBtn.textContent      = sent ? '✓ Sent!' : '✓ Typed — press Enter';
