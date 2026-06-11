@@ -1153,6 +1153,35 @@
       if (modal) { modal.classList.add('visible'); document.getElementById('rf-new-tpl-name').value = ''; document.getElementById('rf-new-tpl-body').value = ''; }
     });
 
+    document.getElementById('rf-ai-tpl-btn')?.addEventListener('click', async () => {
+      const btn = document.getElementById('rf-ai-tpl-btn');
+      const name = document.getElementById('rf-new-tpl-name')?.value.trim() || '';
+      const bodyEl = document.getElementById('rf-new-tpl-body');
+      // Whatever is typed in the body acts as a style/purpose hint for the AI
+      const hint = bodyEl?.value.trim() || '';
+
+      if (!(await canUseAI())) { showUpgradeOverlay(); return; }
+
+      btn.disabled = true;
+      btn.textContent = '✦ Generating…';
+      try {
+        const result = await chrome.runtime.sendMessage({
+          type: 'GENERATE_TEMPLATE',
+          templateName: name,
+          description: hint
+        });
+        if (result?.limitReached) { showUpgradeOverlay(); return; }
+        if (!result?.success) throw new Error(result?.error || 'AI failed');
+        if (bodyEl) bodyEl.value = result.template.trim();
+        showToast('Template generated — edit & save!', 'success');
+      } catch (e) {
+        showToast(e.message || 'Template generation failed', 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '✦ Generate with AI';
+      }
+    });
+
     document.getElementById('rf-save-new-tpl')?.addEventListener('click', async () => {
       const name = document.getElementById('rf-new-tpl-name')?.value.trim();
       const body = document.getElementById('rf-new-tpl-body')?.value.trim();

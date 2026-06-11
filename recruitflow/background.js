@@ -242,6 +242,28 @@ async function handleMessage(message, sender) {
       }
     }
 
+    case 'GENERATE_TEMPLATE': {
+      const { templateName, description } = message;
+      let usage = await getUsage();
+      usage = await checkAndResetDaily(usage);
+
+      if (!usage.is_pro && (usage.ai_uses_total || 0) >= 3) {
+        return { success: false, limitReached: true };
+      }
+
+      const sysPmt = "You are an expert recruiter who writes reusable LinkedIn outreach message templates. Templates use placeholder variables in curly braces that get auto-filled later.";
+      const usrPmt = `Write a LinkedIn outreach message TEMPLATE named "${templateName || 'Outreach'}".${description ? `\nPurpose/style: ${description}` : ''}\n\nRules:\n1. Use EXACTLY these placeholder variables where appropriate: {name} (candidate name), {role} (their current role), {company} (their current company), {jd_title} (the job being offered), {recruiter_name}, {recruiter_company}\n2. Start with "Hi {name},"\n3. Keep it under 120 words, warm and human, never robotic\n4. End with a simple call to action and sign off with {recruiter_name}\n5. Return ONLY the template text — no explanation, no subject line.`;
+
+      try {
+        const template = await callAI(sysPmt, usrPmt);
+        usage.ai_uses_total = (usage.ai_uses_total || 0) + 1;
+        await chrome.storage.local.set({ recruitflow_usage: usage });
+        return { success: true, template };
+      } catch (err) {
+        return { success: false, error: `AI failed: ${err.message}` };
+      }
+    }
+
     case 'LOG_SENT_MESSAGE': {
       const entries = (await chrome.storage.local.get('recruitflow_tracker')).recruitflow_tracker || [];
       const entry = { id: 'msg_' + Date.now(), ...message.data, status: 'Sent', notes: '' };

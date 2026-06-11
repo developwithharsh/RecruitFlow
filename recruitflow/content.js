@@ -512,7 +512,9 @@
       <div>
         <label class="rf-label">Body</label>
         <textarea id="rf-new-tpl-body" class="rf-textarea" rows="6" placeholder="Hi {name}, …"></textarea>
+        <div style="font-size:10px;color:#94A3B8;margin-top:4px;">Variables: {name} {role} {company} {jd_title} {recruiter_name} {recruiter_company}</div>
       </div>
+      <button id="rf-ai-tpl-btn" class="rf-btn-ai" style="margin-top:9px;width:100%;">✦ Generate with AI</button>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px;">
         <button id="rf-save-new-tpl"   class="rf-btn-primary rf-btn-sm">Save</button>
         <button id="rf-cancel-new-tpl" class="rf-btn-secondary rf-btn-sm">Cancel</button>
