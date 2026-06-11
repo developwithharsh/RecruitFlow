@@ -810,15 +810,10 @@
           <div style="font-size:11px;color:#475569;line-height:1.5;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;">${msgPreview}…</div>
         </div>
         ${hasJDText ? `
+        <div style="font-size:9px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;">What to send — tap to select</div>
         <div style="display:flex;gap:6px;margin-bottom:8px;">
-          <label style="flex:1;display:flex;align-items:center;gap:6px;cursor:pointer;padding:6px 8px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:7px;">
-            <input type="checkbox" class="rf-send-msg-check" checked style="width:14px;height:14px;accent-color:#2563EB;cursor:pointer;flex-shrink:0;">
-            <span style="font-size:11px;color:#1E40AF;font-weight:600;">Message</span>
-          </label>
-          <label style="flex:1;display:flex;align-items:center;gap:6px;cursor:pointer;padding:6px 8px;background:#F0FDF4;border:1px solid #BBF7D0;border-radius:7px;">
-            <input type="checkbox" class="rf-send-jd-check" style="width:14px;height:14px;accent-color:#059669;cursor:pointer;flex-shrink:0;">
-            <span style="font-size:11px;color:#065F46;font-weight:600;">JD</span>
-          </label>
+          <button type="button" class="rf-send-msg-toggle" data-on="1" style="flex:1;display:flex;align-items:center;justify-content:center;gap:5px;padding:8px 6px;background:#2563EB;border:2px solid #2563EB;border-radius:8px;font-size:11.5px;font-weight:700;color:#fff;cursor:pointer;transition:all .12s;">✓ Message</button>
+          <button type="button" class="rf-send-jd-toggle" data-on="0" style="flex:1;display:flex;align-items:center;justify-content:center;gap:5px;padding:8px 6px;background:#fff;border:2px solid #CBD5E1;border-radius:8px;font-size:11.5px;font-weight:700;color:#64748B;cursor:pointer;transition:all .12s;">JD</button>
         </div>` : ''}
         <button class="rf-send-now-btn" style="width:100%;background:#2563EB;color:#fff;border:none;border-radius:7px;padding:8px 0;font-size:12px;font-weight:600;cursor:pointer;letter-spacing:.2px;">
           ✦ Send Message
@@ -828,18 +823,36 @@
       card.addEventListener('mouseenter', () => { card.style.boxShadow = '0 2px 12px rgba(37,99,235,.18)'; card.style.borderColor = '#2563EB'; });
       card.addEventListener('mouseleave', () => { card.style.boxShadow = 'none'; card.style.borderColor = isActive ? '#2563EB' : '#E2E8F0'; });
 
+      // Wire the Message / JD toggle pills
+      function styleToggle(btn, on, color) {
+        btn.dataset.on = on ? '1' : '0';
+        btn.style.background  = on ? color : '#fff';
+        btn.style.borderColor = on ? color : '#CBD5E1';
+        btn.style.color       = on ? '#fff' : '#64748B';
+        btn.textContent       = (on ? '✓ ' : '') + (btn.classList.contains('rf-send-msg-toggle') ? 'Message' : 'JD');
+      }
+      const msgToggle = card.querySelector('.rf-send-msg-toggle');
+      const jdToggle  = card.querySelector('.rf-send-jd-toggle');
+      msgToggle?.addEventListener('click', e => {
+        e.stopPropagation();
+        styleToggle(msgToggle, msgToggle.dataset.on !== '1', '#2563EB');
+      });
+      jdToggle?.addEventListener('click', e => {
+        e.stopPropagation();
+        styleToggle(jdToggle, jdToggle.dataset.on !== '1', '#059669');
+      });
+
       const sendBtn = card.querySelector('.rf-send-now-btn');
       sendBtn.addEventListener('mouseenter', () => { sendBtn.style.background = '#1D4ED8'; });
       sendBtn.addEventListener('mouseleave', () => { sendBtn.style.background = '#2563EB'; });
 
       sendBtn.addEventListener('click', async e => {
         e.stopPropagation();
-        const msgCheck  = card.querySelector('.rf-send-msg-check');
-        const sendMsg   = msgCheck ? msgCheck.checked : true;     // no checkbox → message only
-        const sendJDToo = card.querySelector('.rf-send-jd-check')?.checked || false;
+        const sendMsg   = msgToggle ? msgToggle.dataset.on === '1' : true;  // no toggles → message only
+        const sendJDToo = jdToggle ? jdToggle.dataset.on === '1' : false;
 
         if (!sendMsg && !sendJDToo) {
-          sendBtn.textContent = 'Tick Message or JD first';
+          sendBtn.textContent = 'Select Message or JD first';
           sendBtn.style.background = '#DC2626';
           setTimeout(() => {
             sendBtn.textContent = '✦ Send Message';
