@@ -949,29 +949,50 @@
   let _rfInjectTimer = null;
   function injectRFButtons() {
     clearTimeout(_rfInjectTimer);
-    _rfInjectTimer = setTimeout(_doInjectRFButtons, 200);
+    _rfInjectTimer = setTimeout(_doInjectRFButtons, 300);
   }
 
   function _doInjectRFButtons() {
+    // Remove stale RF buttons whose Send sibling has been removed by LinkedIn re-renders
+    document.querySelectorAll('.rf-toolbar-btn').forEach(rfBtn => {
+      if (rfBtn.closest('#recruitflow-sidebar-container')) return;
+      const parent = rfBtn.parentNode;
+      if (!parent) { rfBtn.remove(); return; }
+      const hasSend = Array.from(parent.querySelectorAll('button')).some(b => {
+        if (b === rfBtn) return false;
+        const a = (b.getAttribute('aria-label') || '').toLowerCase();
+        const t = (b.innerText || '').toLowerCase().trim();
+        return a.includes('send') || t === 'send' || t === 'send message' ||
+               b.classList.contains('msg-form__send-button');
+      });
+      if (!hasSend) rfBtn.remove();
+    });
+
     document.querySelectorAll('button').forEach(sendBtn => {
       if (sendBtn.closest('#recruitflow-sidebar-container')) return;
-      // Never match our own injected buttons
       if (sendBtn.classList.contains('rf-toolbar-btn')) return;
 
       const ariaLower = (sendBtn.getAttribute('aria-label') || '').toLowerCase().trim();
       const textLower = (sendBtn.innerText || '').toLowerCase().trim();
 
-      // Strict: only real Send buttons
+      // Broad match: LinkedIn uses several patterns across overlay, full-page, and InMail
       const isSend = ariaLower === 'send' || ariaLower === 'send message' ||
+                     ariaLower.includes('send message') ||
                      textLower === 'send' || textLower === 'send message' ||
-                     sendBtn.classList.contains('msg-form__send-button');
+                     sendBtn.classList.contains('msg-form__send-button') ||
+                     sendBtn.getAttribute('data-control-name') === 'send';
       if (!isSend) return;
 
+      // Skip genuinely hidden nodes (not yet in layout)
       const rect = sendBtn.getBoundingClientRect();
       if (rect.width === 0 && rect.height === 0) return;
 
-      // Only ONE RF button per message form / footer container
-      const container = sendBtn.closest('.msg-form__footer') || sendBtn.closest('form') || sendBtn.parentNode;
+      // Dedup: one RF button per the closest messaging form container
+      const container = sendBtn.closest('.msg-form__footer')
+                     || sendBtn.closest('.msg-form__actions')
+                     || sendBtn.closest('[class*="msg-form"]')
+                     || sendBtn.closest('form')
+                     || sendBtn.parentNode;
       if (container && container.querySelector('.rf-toolbar-btn')) return;
 
       const rfBtn = createRFBtn();
@@ -979,8 +1000,25 @@
     });
   }
 
+  // MutationObserver catches dynamic chat windows opening/closing
   new MutationObserver(injectRFButtons).observe(document.body, { subtree: true, childList: true });
   injectRFButtons();
+
+  // Periodic fallback — catches cases where LinkedIn re-renders and removes the RF button
+  setInterval(_doInjectRFButtons, 2500);
+
+  // Also trigger on compose box focus — most reliable signal that a chat is open
+  document.addEventListener('focusin', e => {
+    const el = e.target;
+    if (!el) return;
+    const isCompose = el.classList.contains('msg-form__contenteditable') ||
+      (el.contentEditable === 'true' && (
+        (el.getAttribute('data-placeholder') || '').toLowerCase().includes('message') ||
+        (el.getAttribute('aria-placeholder') || '').toLowerCase().includes('message') ||
+        (el.getAttribute('aria-label') || '').toLowerCase().includes('message')
+      ));
+    if (isCompose) injectRFButtons();
+  }, true);
 
   // ── Force inject from popup (Step 4) ─────────────────────────────────────
   window.addEventListener('rf-force-inject', () => {
