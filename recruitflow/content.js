@@ -809,10 +809,16 @@
           <div style="font-size:11px;color:#475569;line-height:1.5;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;">${msgPreview}…</div>
         </div>
         ${hasJDText ? `
-        <label style="display:flex;align-items:center;gap:7px;cursor:pointer;margin-bottom:8px;padding:6px 8px;background:#F0FDF4;border:1px solid #BBF7D0;border-radius:7px;">
-          <input type="checkbox" class="rf-send-jd-check" style="width:14px;height:14px;accent-color:#059669;cursor:pointer;flex-shrink:0;">
-          <span style="font-size:11px;color:#065F46;font-weight:500;line-height:1.3;">Also send JD as a separate follow-up message</span>
-        </label>` : ''}
+        <div style="display:flex;gap:6px;margin-bottom:8px;">
+          <label style="flex:1;display:flex;align-items:center;gap:6px;cursor:pointer;padding:6px 8px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:7px;">
+            <input type="checkbox" class="rf-send-msg-check" checked style="width:14px;height:14px;accent-color:#2563EB;cursor:pointer;flex-shrink:0;">
+            <span style="font-size:11px;color:#1E40AF;font-weight:600;">Message</span>
+          </label>
+          <label style="flex:1;display:flex;align-items:center;gap:6px;cursor:pointer;padding:6px 8px;background:#F0FDF4;border:1px solid #BBF7D0;border-radius:7px;">
+            <input type="checkbox" class="rf-send-jd-check" style="width:14px;height:14px;accent-color:#059669;cursor:pointer;flex-shrink:0;">
+            <span style="font-size:11px;color:#065F46;font-weight:600;">JD</span>
+          </label>
+        </div>` : ''}
         <button class="rf-send-now-btn" style="width:100%;background:#2563EB;color:#fff;border:none;border-radius:7px;padding:8px 0;font-size:12px;font-weight:600;cursor:pointer;letter-spacing:.2px;">
           ✦ Send Message
         </button>
@@ -827,7 +833,20 @@
 
       sendBtn.addEventListener('click', async e => {
         e.stopPropagation();
+        const msgCheck  = card.querySelector('.rf-send-msg-check');
+        const sendMsg   = msgCheck ? msgCheck.checked : true;     // no checkbox → message only
         const sendJDToo = card.querySelector('.rf-send-jd-check')?.checked || false;
+
+        if (!sendMsg && !sendJDToo) {
+          sendBtn.textContent = 'Tick Message or JD first';
+          sendBtn.style.background = '#DC2626';
+          setTimeout(() => {
+            sendBtn.textContent = '✦ Send Message';
+            sendBtn.style.background = '#2563EB';
+          }, 2000);
+          return;
+        }
+
         sendBtn.textContent = 'Sending…';
         sendBtn.disabled    = true;
 
@@ -844,7 +863,8 @@
         }
 
         const msg = buildQuickMessage(jd, recruiterName, recruiterCompany);
-        typeIntoBox(composer, msg);
+        const firstText = sendMsg ? msg : jd.text.trim();
+        typeIntoBox(composer, firstText);
 
         // Retry clicking Send until LinkedIn's React state enables the button (up to 3s)
         let sent = false;
@@ -864,13 +884,13 @@
             chrome.runtime.sendMessage({ type: 'LOG_SENT_MESSAGE', data: {
               candidateName, candidateUrl: window.location.href,
               candidateRole: profileRole, candidateCompany: '',
-              jdTitle: jd.title || '', messageSent: msg, sentAt: new Date().toISOString()
+              jdTitle: jd.title || '', messageSent: firstText, sentAt: new Date().toISOString()
             }});
             chrome.runtime.sendMessage({ type: 'INCREMENT_DAILY_COUNT' });
           } catch (_) {}
 
-          // Optionally send JD text as a second follow-up message
-          if (sendJDToo && (jd.text || '').trim()) {
+          // If both ticked: JD goes out as a second follow-up message
+          if (sendMsg && sendJDToo && (jd.text || '').trim()) {
             sendBtn.textContent = 'Sending JD…';
             await new Promise(r => setTimeout(r, 1500));
             const composer2 = getActiveComposer();
