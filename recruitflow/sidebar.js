@@ -1420,9 +1420,9 @@
             <label class="rf-label">Choose your plan</label>
             <div class="rf-limit-options" id="rf-ob-limit-options">
               <button class="rf-limit-opt rf-limit-opt-active" data-val="3" data-plan="free">Free<br><span>3/day</span></button>
-              <button class="rf-limit-opt" data-val="20" data-plan="starter">Starter<br><span>₹499/mo</span></button>
-              <button class="rf-limit-opt" data-val="50" data-plan="pro">Pro<br><span>₹999/mo</span></button>
-              <button class="rf-limit-opt" data-val="9999" data-plan="unlimited">Unlimited<br><span>₹1,999/mo</span></button>
+              <button class="rf-limit-opt" data-val="20" data-plan="starter">Starter<br><span>₹99/mo</span></button>
+              <button class="rf-limit-opt" data-val="50" data-plan="pro">Pro<br><span>₹199/mo</span></button>
+              <button class="rf-limit-opt" data-val="9999" data-plan="unlimited">Unlimited<br><span>₹399/mo</span></button>
             </div>
             <p class="rf-hint">LinkedIn's safe limit is ~50–60 messages/day</p>
           </div>
@@ -1466,9 +1466,9 @@
     let selectedPlan  = 'free';
     const ctaLabels = {
       free:      '✦ Get Started — It\'s Free',
-      starter:   '✦ Continue with Starter — ₹499/mo',
-      pro:       '✦ Continue with Pro — ₹999/mo',
-      unlimited: '✦ Continue with Unlimited — ₹1,999/mo'
+      starter:   '✦ Continue with Starter — ₹99/mo',
+      pro:       '✦ Continue with Pro — ₹199/mo',
+      unlimited: '✦ Continue with Unlimited — ₹399/mo'
     };
     card.querySelectorAll('.rf-limit-opt').forEach(btn => {
       btn.addEventListener('click', () => {

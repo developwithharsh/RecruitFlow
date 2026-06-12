@@ -444,7 +444,7 @@
               <div class="rf-plan-name">Starter</div>
               <div class="rf-plan-tagline">For recruiters hiring 1–2 roles</div>
             </div>
-            <div class="rf-plan-price">₹499<span>/mo</span></div>
+            <div class="rf-plan-price">₹99<span>/mo</span></div>
           </div>
           <ul class="rf-plan-features">
             <li><strong>20 personalised messages daily</strong> — 6× more outreach than free</li>
@@ -463,7 +463,7 @@
               <div class="rf-plan-name">Pro</div>
               <div class="rf-plan-tagline">For agency & in-house recruiters</div>
             </div>
-            <div class="rf-plan-price">₹999<span>/mo</span></div>
+            <div class="rf-plan-price">₹199<span>/mo</span></div>
           </div>
           <ul class="rf-plan-features">
             <li><strong>50 messages daily</strong> — fill your pipeline every single day</li>
@@ -482,7 +482,7 @@
               <div class="rf-plan-name">Unlimited</div>
               <div class="rf-plan-tagline">For hiring teams that never stop</div>
             </div>
-            <div class="rf-plan-price">₹1,999<span>/mo</span></div>
+            <div class="rf-plan-price">₹399<span>/mo</span></div>
           </div>
           <ul class="rf-plan-features">
             <li><strong>Unlimited messages & AI</strong> — zero caps, zero friction</li>
