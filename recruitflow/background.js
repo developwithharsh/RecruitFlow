@@ -231,8 +231,19 @@ async function handleMessage(message, sender) {
 
     case 'GENERATE_SEARCH_QUERY': {
       const { description } = message;
-      const sysPmt = "You are a LinkedIn recruiter expert. Generate optimal LinkedIn people search keywords.";
-      const usrPmt = `Based on this candidate requirement: "${description}"\n\nGenerate a concise LinkedIn search query (keywords only, no explanations) that would find the best matching candidates. Include job title variations, key skills, and relevant experience terms. Keep it under 60 characters. Return ONLY the search keywords string.`;
+      const sysPmt = "You are a senior technical recruiter and Boolean search expert. You generate Google X-ray search strings to find LinkedIn profiles.";
+      const usrPmt = `Candidate requirement: "${description}"
+
+Generate a Google X-ray Boolean search string in EXACTLY this format:
+site:linkedin.com/in/ ("JOB_TITLE_1" OR "JOB_TITLE_2") "SKILL_1" "SKILL_2" ("CITY_1" OR "CITY_2") -"EXCLUDE_1"
+
+Rules:
+1. site:linkedin.com/in/ must always be first
+2. Put 2-3 job title variations in ("Title1" OR "Title2") — use the most common industry titles
+3. Add 2-3 key hard skills or tools as individual quoted terms
+4. If a city/region is mentioned, add ("City1" OR "City2") — otherwise omit the location block
+5. Add 1-2 -"exclude" terms to filter out irrelevant profiles (e.g. -"looking for" -"student" -"intern")
+6. Return ONLY the raw search string — no explanation, no markdown, no extra text.`;
 
       try {
         const query = await callAI(sysPmt, usrPmt);

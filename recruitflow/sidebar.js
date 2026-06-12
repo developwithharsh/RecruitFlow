@@ -1270,15 +1270,15 @@
         await storageSet({ recruitflow_usage: usage });
 
         const query = result.query || '';
-        const keywords = encodeURIComponent(query);
-        const url = `https://www.linkedin.com/search/results/people/?keywords=${keywords}&origin=GLOBAL_SEARCH_HEADER`;
+        // X-ray search runs on Google for much more accurate profile discovery
+        const googleUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
 
         document.getElementById('rf-search-query-box').textContent = query;
-        document.getElementById('rf-search-url-box').textContent = url;
+        document.getElementById('rf-search-url-box').textContent = googleUrl;
         document.getElementById('rf-search-result').style.display = 'block';
 
         document.getElementById('rf-search-go-btn').onclick = () => {
-          window.open(url, '_blank');
+          window.open(googleUrl, '_blank');
         };
 
         refreshSearchBadge();
