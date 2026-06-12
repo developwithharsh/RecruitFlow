@@ -407,15 +407,15 @@
       <div class="rf-section">
         <label class="rf-label">Describe Your Ideal Candidate</label>
         <textarea id="rf-search-desc" class="rf-textarea" rows="4" placeholder="e.g. Ecommerce Executive with 3+ years, Shopify experience, based in Mumbai…"></textarea>
-        <div style="font-size:10px;color:#94A3B8;margin-top:4px;">Just describe in plain English — AI will build the X-ray Boolean search string.</div>
+        <div style="font-size:10px;color:#94A3B8;margin-top:4px;">Just describe in plain English — AI will build the Boolean search string.</div>
       </div>
-      <button id="rf-search-ai-btn" class="rf-btn-ai">✦ Generate X-ray Search <span id="rf-search-uses-badge" class="rf-ai-uses-badge"></span></button>
+      <button id="rf-search-ai-btn" class="rf-btn-ai">✦ Generate Boolean Search <span id="rf-search-uses-badge" class="rf-ai-uses-badge"></span></button>
       <div id="rf-search-result" style="display:none;margin-top:10px;">
         <label class="rf-label">Boolean Search String</label>
         <div id="rf-search-query-box" style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:10px;font-size:11px;color:#0F172A;line-height:1.7;margin-bottom:8px;white-space:pre-wrap;word-break:break-all;font-family:monospace;"></div>
-        <label class="rf-label" style="margin-top:8px;">Google X-ray Search URL</label>
+        <label class="rf-label" style="margin-top:8px;">LinkedIn Search URL</label>
         <div id="rf-search-url-box" style="background:#EFF6FF;border:1px solid #DBEAFE;border-radius:8px;padding:8px 10px;font-size:10px;color:#2563EB;line-height:1.5;margin-bottom:10px;word-break:break-all;"></div>
-        <button id="rf-search-go-btn" class="rf-btn-primary">🔍 Search LinkedIn Profiles on Google</button>
+        <button id="rf-search-go-btn" class="rf-btn-primary">🔍 Search on LinkedIn</button>
       </div>
     </div>
   </div>
