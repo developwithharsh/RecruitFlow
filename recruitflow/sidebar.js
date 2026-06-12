@@ -1269,12 +1269,35 @@
         usage.search_uses_today = (usage.search_uses_today || 0) + 1;
         await storageSet({ recruitflow_usage: usage });
 
-        const query = result.query || '';
-        // LinkedIn people search supports Boolean operators (AND/OR/NOT/quotes)
-        const url = `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(query)}&origin=GLOBAL_SEARCH_HEADER`;
+        const query    = result.query    || '';
+        const location = result.location || '';
 
-        document.getElementById('rf-search-query-box').textContent = query;
+        // Build LinkedIn people search URL.
+        // Keywords = titles + skills (LinkedIn handles "X" OR "Y" in keywords).
+        // Location = separate filter shown to the user as instruction since
+        // LinkedIn geoUrns are internal IDs we can't reliably hardcode.
+        let url = `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(query)}&origin=GLOBAL_SEARCH_HEADER`;
+
+        // Human-readable string for display
+        const displayString = location
+          ? `Keywords: ${query}\nLocation filter: ${location}`
+          : `Keywords: ${query}`;
+
+        document.getElementById('rf-search-query-box').textContent = displayString;
         document.getElementById('rf-search-url-box').textContent = url;
+
+        // Show/hide location instruction
+        const locHint = document.getElementById('rf-search-loc-hint');
+        const locName = document.getElementById('rf-search-loc-name');
+        if (locHint && locName) {
+          if (location) {
+            locName.textContent = location;
+            locHint.style.display = 'block';
+          } else {
+            locHint.style.display = 'none';
+          }
+        }
+
         document.getElementById('rf-search-result').style.display = 'block';
 
         document.getElementById('rf-search-go-btn').onclick = () => {

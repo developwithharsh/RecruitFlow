@@ -411,10 +411,15 @@
       </div>
       <button id="rf-search-ai-btn" class="rf-btn-ai">✦ Generate Boolean Search <span id="rf-search-uses-badge" class="rf-ai-uses-badge"></span></button>
       <div id="rf-search-result" style="display:none;margin-top:10px;">
-        <label class="rf-label">Boolean Search String</label>
+        <label class="rf-label">Search Keywords</label>
         <div id="rf-search-query-box" style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:10px;font-size:11px;color:#0F172A;line-height:1.7;margin-bottom:8px;white-space:pre-wrap;word-break:break-all;font-family:monospace;"></div>
-        <label class="rf-label" style="margin-top:8px;">LinkedIn Search URL</label>
-        <div id="rf-search-url-box" style="background:#EFF6FF;border:1px solid #DBEAFE;border-radius:8px;padding:8px 10px;font-size:10px;color:#2563EB;line-height:1.5;margin-bottom:10px;word-break:break-all;"></div>
+
+        <!-- Location instruction — shown only when location was detected -->
+        <div id="rf-search-loc-hint" style="display:none;background:#FFF7ED;border:1.5px solid #FED7AA;border-radius:8px;padding:10px 12px;margin-bottom:10px;">
+          <div style="font-size:11px;font-weight:700;color:#92400E;margin-bottom:4px;">📍 Set location filter manually</div>
+          <div style="font-size:11px;color:#78350F;line-height:1.5;">After LinkedIn opens, click <strong>All filters → Locations</strong> and type <strong id="rf-search-loc-name"></strong> to filter by city.</div>
+        </div>
+
         <button id="rf-search-go-btn" class="rf-btn-primary">🔍 Search on LinkedIn</button>
       </div>
     </div>

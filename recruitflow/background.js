@@ -231,23 +231,40 @@ async function handleMessage(message, sender) {
 
     case 'GENERATE_SEARCH_QUERY': {
       const { description } = message;
-      const sysPmt = "You are a senior technical recruiter and Boolean search expert. You generate LinkedIn people-search Boolean strings.";
-      const usrPmt = `Candidate requirement: "${description}"
+      const sysPmt = "You are a senior recruiter. Extract structured search components from a recruiter's candidate requirement.";
+      const usrPmt = `Recruiter requirement: "${description}"
 
-Generate a LinkedIn Boolean search string in EXACTLY this format:
-("JOB_TITLE_1" OR "JOB_TITLE_2" OR "JOB_TITLE_3") AND ("SKILL_1" OR "SKILL_2") NOT "EXCLUDE_1"
+Extract the following and return ONLY a valid JSON object (no markdown, no explanation):
+{
+  "titles": ["Primary Job Title", "Alternate Title"],
+  "skills": ["Skill1", "Skill2"],
+  "location": "City Name or empty string"
+}
 
 Rules:
-1. Put 2-3 job title variations in the first ( ... OR ... ) group — use the most common industry titles
-2. Add 2-3 key hard skills/tools in a second ( ... OR ... ) group joined with AND
-3. If a city/region is mentioned, add it as: AND ("CITY_1" OR "CITY_2")
-4. Add 1-2 NOT terms to filter out irrelevant profiles (e.g. NOT "intern" NOT "student")
-5. Use only LinkedIn-supported operators: AND, OR, NOT, quotes, parentheses
-6. Return ONLY the raw Boolean string — no site: operator, no explanation, no markdown.`;
+- titles: 2 most common LinkedIn profile titles for this role (short, e.g. "React Developer")
+- skills: 1-2 key hard skills only — omit if the requirement is just a title
+- location: exact city name if mentioned, otherwise empty string ""
+- Return ONLY the JSON. Nothing else.`;
 
       try {
-        const query = await callAI(sysPmt, usrPmt);
-        return { success: true, query: query.trim() };
+        const raw = await callAI(sysPmt, usrPmt);
+        // Parse AI JSON response
+        const jsonMatch = raw.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) throw new Error('AI did not return valid JSON');
+        const parsed = JSON.parse(jsonMatch[0]);
+
+        const titles   = (parsed.titles  || []).slice(0, 2).filter(Boolean);
+        const skills   = (parsed.skills  || []).slice(0, 2).filter(Boolean);
+        const location = (parsed.location || '').trim();
+
+        // Build a clean keyword string LinkedIn actually understands
+        // Format: "Title1" OR "Title2"   (LinkedIn handles OR in keywords)
+        const titlePart = titles.map(t => `"${t}"`).join(' OR ');
+        const skillPart = skills.map(s => `"${s}"`).join(' ');
+        const keywords  = [titlePart, skillPart].filter(Boolean).join(' ');
+
+        return { success: true, query: keywords, location };
       } catch (err) {
         return { success: false, error: `AI failed: ${err.message}` };
       }
