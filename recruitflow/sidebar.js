@@ -1234,6 +1234,37 @@
     if (badge) badge.textContent = left === '∞' ? '' : `${left} left`;
   }
 
+  // Resolve a city name to LinkedIn's internal geo ID using LinkedIn's own
+  // typeahead API (same-origin request — rides on the user's session cookies).
+  async function resolveLinkedInGeoId(cityName) {
+    try {
+      // csrf-token header must equal the JSESSIONID cookie value
+      const m = document.cookie.match(/JSESSIONID="?([^";]+)"?/);
+      if (!m) return '';
+      const csrf = m[1];
+
+      const apiUrl = `https://www.linkedin.com/voyager/api/typeahead/hitsV2?keywords=${encodeURIComponent(cityName)}&origin=OTHER&q=type&type=GEO`;
+      const res = await fetch(apiUrl, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'csrf-token': csrf,
+          'accept': 'application/vnd.linkedin.normalized+json+2.1',
+          'x-restli-protocol-version': '2.0.0'
+        }
+      });
+      if (!res.ok) return '';
+      const data = await res.json();
+
+      // Find the first geo urn in the response (e.g. urn:li:fs_geo:104990346)
+      const text = JSON.stringify(data);
+      const urnMatch = text.match(/urn:li:(?:fs_geo|geo):(\d+)/);
+      return urnMatch ? urnMatch[1] : '';
+    } catch (_) {
+      return '';
+    }
+  }
+
   function wireSearchTab() {
     refreshSearchBadge();
 
@@ -1272,24 +1303,30 @@
         const query    = result.query    || '';
         const location = result.location || '';
 
-        // Build LinkedIn people search URL.
-        // Keywords = titles + skills (LinkedIn handles "X" OR "Y" in keywords).
-        // Location = separate filter shown to the user as instruction since
-        // LinkedIn geoUrns are internal IDs we can't reliably hardcode.
-        let url = `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(query)}&origin=GLOBAL_SEARCH_HEADER`;
+        // ── Auto-resolve the city to LinkedIn's internal geo ID ──
+        // We run on linkedin.com, so we can use the user's own session to ask
+        // LinkedIn's typeahead API the same way its location dropdown does.
+        let geoId = '';
+        if (location) {
+          btn.textContent = 'Resolving location…';
+          geoId = await resolveLinkedInGeoId(location);
+        }
 
-        // Human-readable string for display
+        // Build the people-search URL — geoUrn applies the location filter automatically
+        let url = `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(query)}&origin=GLOBAL_SEARCH_HEADER`;
+        if (geoId) url += `&geoUrn=${encodeURIComponent(`["${geoId}"]`)}`;
+
         const displayString = location
-          ? `Keywords: ${query}\nLocation filter: ${location}`
+          ? `Keywords: ${query}\nLocation: ${location}${geoId ? ' ✓ (auto-applied)' : ''}`
           : `Keywords: ${query}`;
 
         document.getElementById('rf-search-query-box').textContent = displayString;
 
-        // Show/hide location instruction
+        // Manual instruction only if auto-resolution failed
         const locHint = document.getElementById('rf-search-loc-hint');
         const locName = document.getElementById('rf-search-loc-name');
         if (locHint && locName) {
-          if (location) {
+          if (location && !geoId) {
             locName.textContent = location;
             locHint.style.display = 'block';
           } else {
