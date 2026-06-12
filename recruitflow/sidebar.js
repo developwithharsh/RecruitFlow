@@ -1284,7 +1284,6 @@
           : `Keywords: ${query}`;
 
         document.getElementById('rf-search-query-box').textContent = displayString;
-        document.getElementById('rf-search-url-box').textContent = url;
 
         // Show/hide location instruction
         const locHint = document.getElementById('rf-search-loc-hint');
