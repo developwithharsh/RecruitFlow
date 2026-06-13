@@ -207,18 +207,22 @@
         <div style="margin-bottom:8px;">
           <textarea id="rf-jd-text" class="rf-textarea" rows="5" placeholder="Paste your job description here…"></textarea>
         </div>
-        <button id="rf-jd-generate-btn" class="rf-btn-ai" style="margin-bottom:8px;">
-          ✦ Generate JD with AI <span class="rf-ai-uses-badge" id="rf-jd-gen-badge"></span>
-        </button>
+        <!-- Primary action row: Generate or Upload -->
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:8px;">
-          <button id="rf-pdf-upload-btn" class="rf-btn-secondary rf-btn-sm">📎 Upload PDF</button>
-          <button id="rf-jd-save-btn" class="rf-btn-primary rf-btn-sm">💾 Save JD</button>
+          <button id="rf-jd-generate-btn" class="rf-btn-ai" style="font-size:11px;padding:0 6px;height:36px;">
+            ✦ Generate with AI <span class="rf-ai-uses-badge" id="rf-jd-gen-badge"></span>
+          </button>
+          <button id="rf-pdf-upload-btn" class="rf-btn-secondary rf-btn-sm" style="height:36px;">📎 Upload PDF</button>
           <input id="rf-pdf-input" type="file" accept=".pdf" style="display:none !important;">
-          <span id="rf-pdf-status" style="font-size:10px;color:#059669;grid-column:1/-1;"></span>
+          <span id="rf-pdf-status" style="font-size:10px;color:#059669;grid-column:1/-1;margin-top:-4px;"></span>
         </div>
-        <button id="rf-jd-optimize-btn" class="rf-btn-ai" style="margin-bottom:0;">
-          ✦ Optimize with AI <span class="rf-ai-uses-badge"></span>
-        </button>
+        <!-- Secondary row: Optimize + Save -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:0;">
+          <button id="rf-jd-optimize-btn" class="rf-btn-ai" style="font-size:11px;padding:0 6px;height:36px;">
+            ✦ Optimize <span class="rf-ai-uses-badge"></span>
+          </button>
+          <button id="rf-jd-save-btn" class="rf-btn-primary rf-btn-sm" style="height:36px;">💾 Save JD</button>
+        </div>
         <div id="rf-optimized-section" style="display:none;margin-top:10px;">
           <div class="rf-divider"></div>
           <label class="rf-label">AI-optimized version</label>

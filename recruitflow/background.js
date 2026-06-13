@@ -219,28 +219,29 @@ async function handleMessage(message, sender) {
       const sysPmt = "You are an expert HR consultant who writes clear, compelling job descriptions that attract top candidates.";
       const usrPmt = `Write a complete job description for: "${jobTitle}"
 
-Format it exactly like this:
-**About the Role**
+Format it exactly like this (plain text only, NO asterisks, NO markdown, NO bold symbols):
+
+ABOUT THE ROLE
 [2 sentence compelling intro]
 
-**Key Responsibilities**
-• [responsibility 1]
-• [responsibility 2]
-• [responsibility 3]
-• [responsibility 4]
-• [responsibility 5]
+KEY RESPONSIBILITIES
+- [responsibility 1]
+- [responsibility 2]
+- [responsibility 3]
+- [responsibility 4]
+- [responsibility 5]
 
-**Must-Have Skills**
-• [skill 1]
-• [skill 2]
-• [skill 3]
-• [skill 4]
+MUST-HAVE SKILLS
+- [skill 1]
+- [skill 2]
+- [skill 3]
+- [skill 4]
 
-**Good to Have**
-• [nice to have 1]
-• [nice to have 2]
+GOOD TO HAVE
+- [nice to have 1]
+- [nice to have 2]
 
-Keep it concise, human, and jargon-free. Return ONLY the JD text.`;
+Keep it concise, human, and jargon-free. Return ONLY the JD text. No asterisks. No markdown.`;
 
       try {
         const jdText = await callAI(sysPmt, usrPmt);

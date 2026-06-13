@@ -981,7 +981,9 @@
         const result = await chrome.runtime.sendMessage({ type: 'GENERATE_JD', jobTitle: title });
         if (result.limitReached) { showUpgradeOverlay(); return; }
         if (!result.success) { showToast(result.error || 'AI unavailable', 'error'); return; }
-        document.getElementById('rf-jd-text').value = result.jdText;
+        // Strip any markdown asterisks the AI might still output
+        const cleanJD = (result.jdText || '').replace(/\*\*/g, '').replace(/\*/g, '').trim();
+        document.getElementById('rf-jd-text').value = cleanJD;
         await refreshAIBadge();
         showToast('JD generated! Review and save.', 'success');
       } catch (e) {
