@@ -422,12 +422,7 @@
     setTimeout(() => t.remove(), 3500);
   }
 
-  // ── Razorpay payment links (replace with your live links from Razorpay dashboard) ─
-  const RAZORPAY_LINKS = {
-    starter:   'https://rzp.io/l/recruitflow-starter',
-    pro:       'https://rzp.io/l/recruitflow-pro',
-    unlimited: 'https://rzp.io/l/recruitflow-unlimited'
-  };
+  // Payment now handled via UPI QR flow in wireUpgradeOverlay
 
   // Plan configs activated after payment
   const PLAN_CONFIGS = {
@@ -484,29 +479,128 @@
     document.getElementById('rf-upgrade-overlay')?.classList.remove('visible');
   }
 
+  // ── UPI Payment config ───────────────────────────────────────────────────
+  const UPI_ID   = 'harsh.thakor1965@okicici';
+  const UPI_NAME = 'RecruitFlow';
+
+  function buildUpiString(amount, plan) {
+    const note = encodeURIComponent(`RecruitFlow ${plan} Plan`);
+    return `upi://pay?pa=${UPI_ID}&pn=${encodeURIComponent(UPI_NAME)}&am=${amount}&cu=INR&tn=${note}`;
+  }
+
+  function buildQrUrl(upiString) {
+    return `https://api.qrserver.com/v1/create-qr-code/?size=160x160&margin=4&data=${encodeURIComponent(upiString)}`;
+  }
+
+  function showUpiStep(step) {
+    ['plans','pay','utr','success'].forEach(s =>
+      document.getElementById(`rf-upi-step-${s}`)?.style && (document.getElementById(`rf-upi-step-${s}`).style.display = 'none')
+    );
+    const el = document.getElementById(`rf-upi-step-${step}`);
+    if (el) el.style.display = '';
+  }
+
   function wireUpgradeOverlay() {
+    let selectedPlan   = '';
+    let selectedAmount = 0;
+
     // Dismiss buttons
     document.getElementById('rf-upgrade-dismiss')?.addEventListener('click', hideUpgradeOverlay);
     document.getElementById('rf-upgrade-dismiss-2')?.addEventListener('click', hideUpgradeOverlay);
 
-    // Plan buy buttons → open Razorpay payment link in new tab
+    // Plan buy buttons → show UPI payment screen
     document.querySelectorAll('.rf-plan-btn').forEach(btn => {
       btn.addEventListener('click', () => {
-        const plan = btn.dataset.plan;
-        const link = RAZORPAY_LINKS[plan];
-        if (link) {
-          window.open(link, '_blank');
-          // After opening payment, show activation key hint
-          const msg = document.getElementById('rf-activation-msg');
-          if (msg) {
-            msg.textContent = 'Complete payment then enter your activation key below.';
-            msg.className = 'rf-activation-msg';
-          }
-        }
+        selectedPlan   = btn.dataset.plan;
+        selectedAmount = parseInt(btn.dataset.amount) || 0;
+
+        const planNames = { starter: 'Starter', pro: 'Pro', unlimited: 'Unlimited' };
+        const planName  = planNames[selectedPlan] || selectedPlan;
+
+        // Build QR
+        const upiStr = buildUpiString(selectedAmount, planName);
+        document.getElementById('rf-upi-qr').src = buildQrUrl(upiStr);
+        document.getElementById('rf-upi-open-app').href = upiStr;
+        document.getElementById('rf-upi-plan-label').textContent = planName + ' Plan';
+        document.getElementById('rf-upi-amount-label').textContent = '₹' + selectedAmount + '/mo';
+
+        showUpiStep('pay');
       });
     });
 
-    // Activation key submit (overlay)
+    // Copy UPI ID
+    document.getElementById('rf-upi-copy-btn')?.addEventListener('click', () => {
+      navigator.clipboard.writeText(UPI_ID).then(() => {
+        const btn = document.getElementById('rf-upi-copy-btn');
+        btn.textContent = '✓ Copied!';
+        setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+      });
+    });
+
+    // Back from pay screen → plans
+    document.getElementById('rf-upi-back-btn')?.addEventListener('click', () => showUpiStep('plans'));
+    document.getElementById('rf-upi-cancel-btn')?.addEventListener('click', () => showUpiStep('plans'));
+
+    // I've Paid → UTR entry
+    document.getElementById('rf-upi-paid-btn')?.addEventListener('click', () => {
+      document.getElementById('rf-utr-input').value = '';
+      document.getElementById('rf-utr-error').style.display = 'none';
+      showUpiStep('utr');
+    });
+
+    // Back from UTR → pay screen
+    document.getElementById('rf-utr-back-btn')?.addEventListener('click', () => showUpiStep('pay'));
+
+    // UTR submit → activate immediately (trust-based)
+    document.getElementById('rf-utr-submit-btn')?.addEventListener('click', async () => {
+      const utr = document.getElementById('rf-utr-input')?.value?.trim().replace(/\s/g, '');
+      const errEl = document.getElementById('rf-utr-error');
+
+      if (!utr || utr.length < 6) {
+        errEl.textContent = 'Please enter a valid UTR / Transaction ID.';
+        errEl.style.display = 'block';
+        return;
+      }
+
+      const submitBtn = document.getElementById('rf-utr-submit-btn');
+      submitBtn.textContent = 'Activating…';
+      submitBtn.disabled = true;
+
+      // Log the UTR for manual verification
+      const pendingPayments = (await storageGet('recruitflow_pending_payments')) || [];
+      pendingPayments.push({
+        utr, plan: selectedPlan, amount: selectedAmount,
+        timestamp: new Date().toISOString()
+      });
+      await storageSet({ recruitflow_pending_payments: pendingPayments });
+
+      // Grant pro access immediately (trust-based)
+      await activateLicense(selectedPlan);
+
+      const planNames = { starter: 'Starter', pro: 'Pro', unlimited: 'Unlimited' };
+      document.getElementById('rf-success-plan-label').textContent =
+        `${planNames[selectedPlan]} Plan — ₹${selectedAmount}/mo is active`;
+
+      await refreshLimitBar();
+      await refreshAIBadge();
+      await refreshPlanStatus();
+
+      showUpiStep('success');
+      submitBtn.textContent = '⚡ Activate Now';
+      submitBtn.disabled = false;
+    });
+
+    document.getElementById('rf-utr-input')?.addEventListener('keydown', e => {
+      if (e.key === 'Enter') document.getElementById('rf-utr-submit-btn')?.click();
+    });
+
+    // Success close
+    document.getElementById('rf-success-close-btn')?.addEventListener('click', () => {
+      showUpiStep('plans');
+      hideUpgradeOverlay();
+    });
+
+    // Activation key submit (overlay) — kept as alternate path
     document.getElementById('rf-activation-submit')?.addEventListener('click', () =>
       handleActivationKey(
         document.getElementById('rf-activation-key'),

@@ -428,82 +428,139 @@
   <!-- Upgrade overlay -->
   <div class="rf-upgrade-overlay" id="rf-upgrade-overlay">
     <div class="rf-upgrade-card">
-      <button class="rf-upgrade-close" id="rf-upgrade-dismiss">✕</button>
-      <span class="rf-upgrade-icon">🚀</span>
-      <div class="rf-upgrade-title">Supercharge Your Recruiting</div>
-      <div class="rf-upgrade-sub">Recruiters on paid plans reach <strong>10× more candidates</strong> and fill roles faster. Pick the plan that fits your hiring pace.</div>
 
-      <!-- Plan cards — stacked, benefit-driven -->
-      <div class="rf-plan-stack">
+      <!-- ── STEP 1: Plan selection ── -->
+      <div id="rf-upi-step-plans">
+        <button class="rf-upgrade-close" id="rf-upgrade-dismiss">✕</button>
+        <span class="rf-upgrade-icon">🚀</span>
+        <div class="rf-upgrade-title">Supercharge Your Recruiting</div>
+        <div class="rf-upgrade-sub">Recruiters on paid plans reach <strong>10× more candidates</strong> and fill roles faster. Pick the plan that fits your hiring pace.</div>
 
-        <!-- Starter -->
-        <div class="rf-plan-row" data-plan="starter">
-          <div class="rf-plan-row-head">
-            <span class="rf-plan-emoji">🌱</span>
-            <div class="rf-plan-row-title">
-              <div class="rf-plan-name">Starter</div>
-              <div class="rf-plan-tagline">For recruiters hiring 1–2 roles</div>
+        <div class="rf-plan-stack">
+          <!-- Starter -->
+          <div class="rf-plan-row" data-plan="starter">
+            <div class="rf-plan-row-head">
+              <span class="rf-plan-emoji">🌱</span>
+              <div class="rf-plan-row-title">
+                <div class="rf-plan-name">Starter</div>
+                <div class="rf-plan-tagline">For recruiters hiring 1–2 roles</div>
+              </div>
+              <div class="rf-plan-price">₹99<span>/mo</span></div>
             </div>
-            <div class="rf-plan-price">₹99<span>/mo</span></div>
+            <ul class="rf-plan-features">
+              <li><strong>20 personalised messages daily</strong> — 6× more outreach than free</li>
+              <li><strong>20 AI generations daily</strong> — every message tailored to the candidate</li>
+              <li>JD Optimizer & unlimited templates</li>
+            </ul>
+            <button class="rf-plan-btn" data-plan="starter" data-amount="99">Get Starter — ₹99/mo →</button>
           </div>
-          <ul class="rf-plan-features">
-            <li><strong>20 personalised messages daily</strong> — 6× more outreach than free</li>
-            <li><strong>20 AI generations daily</strong> — every message tailored to the candidate</li>
-            <li>JD Optimizer & unlimited templates</li>
-          </ul>
-          <button class="rf-plan-btn" data-plan="starter">Start with Starter →</button>
+          <!-- Pro -->
+          <div class="rf-plan-row rf-plan-popular" data-plan="pro">
+            <div class="rf-plan-badge">⭐ Most Popular</div>
+            <div class="rf-plan-row-head">
+              <span class="rf-plan-emoji">⚡</span>
+              <div class="rf-plan-row-title">
+                <div class="rf-plan-name">Pro</div>
+                <div class="rf-plan-tagline">For agency & in-house recruiters</div>
+              </div>
+              <div class="rf-plan-price">₹199<span>/mo</span></div>
+            </div>
+            <ul class="rf-plan-features">
+              <li><strong>50 messages daily</strong> — fill your pipeline every single day</li>
+              <li><strong>50 AI generations daily</strong> + PDF JD uploads</li>
+              <li>Full outreach tracker with CSV export</li>
+              <li>Priority support on WhatsApp</li>
+            </ul>
+            <button class="rf-plan-btn rf-plan-btn-primary" data-plan="pro" data-amount="199">Go Pro — Recruit Faster →</button>
+          </div>
+          <!-- Unlimited -->
+          <div class="rf-plan-row" data-plan="unlimited">
+            <div class="rf-plan-row-head">
+              <span class="rf-plan-emoji">👑</span>
+              <div class="rf-plan-row-title">
+                <div class="rf-plan-name">Unlimited</div>
+                <div class="rf-plan-tagline">For hiring teams that never stop</div>
+              </div>
+              <div class="rf-plan-price">₹399<span>/mo</span></div>
+            </div>
+            <ul class="rf-plan-features">
+              <li><strong>Unlimited messages & AI</strong> — zero caps, zero friction</li>
+              <li>Everything in Pro, plus team features</li>
+              <li>Dedicated support — we answer in hours, not days</li>
+            </ul>
+            <button class="rf-plan-btn" data-plan="unlimited" data-amount="399">Go Unlimited →</button>
+          </div>
         </div>
 
-        <!-- Pro -->
-        <div class="rf-plan-row rf-plan-popular" data-plan="pro">
-          <div class="rf-plan-badge">⭐ Most Popular</div>
-          <div class="rf-plan-row-head">
-            <span class="rf-plan-emoji">⚡</span>
-            <div class="rf-plan-row-title">
-              <div class="rf-plan-name">Pro</div>
-              <div class="rf-plan-tagline">For agency & in-house recruiters</div>
-            </div>
-            <div class="rf-plan-price">₹199<span>/mo</span></div>
+        <!-- Activation key entry -->
+        <div class="rf-activation-section">
+          <div class="rf-activation-label">Already paid? Enter your activation key:</div>
+          <div class="rf-activation-row">
+            <input id="rf-activation-key" class="rf-input" type="text" placeholder="XXXX-XXXX-XXXX-XXXX">
+            <button id="rf-activation-submit" class="rf-btn-primary">Activate</button>
           </div>
-          <ul class="rf-plan-features">
-            <li><strong>50 messages daily</strong> — fill your pipeline every single day</li>
-            <li><strong>50 AI generations daily</strong> + PDF JD uploads</li>
-            <li>Full outreach tracker with CSV export</li>
-            <li>Priority support on WhatsApp</li>
-          </ul>
-          <button class="rf-plan-btn rf-plan-btn-primary" data-plan="pro">Go Pro — Recruit Faster →</button>
+          <div id="rf-activation-msg" class="rf-activation-msg"></div>
         </div>
 
-        <!-- Unlimited -->
-        <div class="rf-plan-row" data-plan="unlimited">
-          <div class="rf-plan-row-head">
-            <span class="rf-plan-emoji">👑</span>
-            <div class="rf-plan-row-title">
-              <div class="rf-plan-name">Unlimited</div>
-              <div class="rf-plan-tagline">For hiring teams that never stop</div>
-            </div>
-            <div class="rf-plan-price">₹399<span>/mo</span></div>
-          </div>
-          <ul class="rf-plan-features">
-            <li><strong>Unlimited messages & AI</strong> — zero caps, zero friction</li>
-            <li>Everything in Pro, plus team features</li>
-            <li>Dedicated support — we answer in hours, not days</li>
-          </ul>
-          <button class="rf-plan-btn" data-plan="unlimited">Go Unlimited →</button>
-        </div>
+        <button class="rf-btn-secondary" id="rf-upgrade-dismiss-2" style="margin-top:8px;width:100%;">Maybe Later</button>
       </div>
 
-      <!-- Activation key entry -->
-      <div class="rf-activation-section">
-        <div class="rf-activation-label">Already paid? Enter your activation key:</div>
-        <div class="rf-activation-row">
-          <input id="rf-activation-key" class="rf-input" type="text" placeholder="XXXX-XXXX-XXXX-XXXX">
-          <button id="rf-activation-submit" class="rf-btn-primary">Activate</button>
+      <!-- ── STEP 2: UPI Payment screen ── -->
+      <div id="rf-upi-step-pay" style="display:none;text-align:center;">
+        <button class="rf-upgrade-close" id="rf-upi-back-btn" title="Back">←</button>
+        <div style="font-size:13px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">Pay via UPI</div>
+        <div id="rf-upi-plan-label" style="font-size:18px;font-weight:800;color:#0F172A;margin-bottom:2px;"></div>
+        <div id="rf-upi-amount-label" style="font-size:28px;font-weight:900;color:#2563EB;margin-bottom:14px;"></div>
+
+        <!-- QR Code -->
+        <div style="display:inline-block;background:#fff;border:2px solid #E2E8F0;border-radius:16px;padding:10px;margin-bottom:12px;">
+          <img id="rf-upi-qr" src="" alt="UPI QR Code" width="160" height="160" style="display:block;border-radius:8px;">
         </div>
-        <div id="rf-activation-msg" class="rf-activation-msg"></div>
+        <div style="font-size:11px;color:#64748B;margin-bottom:12px;">Scan with Google Pay, PhonePe, Paytm or any UPI app</div>
+
+        <!-- UPI ID copy row -->
+        <div style="background:#F8FAFC;border:1.5px solid #E2E8F0;border-radius:10px;padding:10px 12px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+          <div>
+            <div style="font-size:9px;color:#94A3B8;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">UPI ID</div>
+            <div style="font-size:12px;font-weight:700;color:#0F172A;font-family:monospace;">harsh.thakor1965@okicici</div>
+          </div>
+          <button id="rf-upi-copy-btn" style="background:#2563EB;color:#fff;border:none;border-radius:7px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">Copy</button>
+        </div>
+
+        <!-- Open in UPI app button -->
+        <a id="rf-upi-open-app" href="#" style="display:block;background:linear-gradient(90deg,#059669,#10B981);color:#fff;border-radius:10px;padding:11px;font-size:13px;font-weight:700;text-decoration:none;margin-bottom:8px;">📱 Open in UPI App</a>
+
+        <button id="rf-upi-paid-btn" style="width:100%;background:#2563EB;color:#fff;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:6px;">✓ I've Paid — Enter UTR</button>
+        <button id="rf-upi-cancel-btn" class="rf-btn-secondary" style="width:100%;font-size:12px;">← Choose Different Plan</button>
       </div>
 
-      <button class="rf-btn-secondary" id="rf-upgrade-dismiss-2" style="margin-top:8px;width:100%;">Maybe Later</button>
+      <!-- ── STEP 3: UTR entry & activation ── -->
+      <div id="rf-upi-step-utr" style="display:none;text-align:center;">
+        <div style="font-size:32px;margin-bottom:8px;">🔑</div>
+        <div style="font-size:16px;font-weight:800;color:#0F172A;margin-bottom:4px;">Enter Your UTR Number</div>
+        <div style="font-size:11px;color:#64748B;line-height:1.5;margin-bottom:16px;">After payment, your UPI app shows a 12-digit UTR / Transaction ID. Enter it below to activate your plan instantly.</div>
+
+        <div style="background:#FFF7ED;border:1px solid #FED7AA;border-radius:8px;padding:8px 10px;margin-bottom:14px;font-size:10px;color:#92400E;text-align:left;line-height:1.5;">
+          📍 Find UTR: Open Google Pay / PhonePe → Transactions → tap the payment → copy the <strong>UTR / Transaction ID</strong> (12 digits)
+        </div>
+
+        <input id="rf-utr-input" type="text" class="rf-input" placeholder="e.g. 123456789012" maxlength="20" style="text-align:center;font-size:16px;font-weight:700;letter-spacing:2px;margin-bottom:10px;">
+        <div id="rf-utr-error" style="font-size:11px;color:#DC2626;margin-bottom:8px;display:none;"></div>
+        <button id="rf-utr-submit-btn" class="rf-btn-primary" style="width:100%;font-size:14px;padding:12px;margin-bottom:6px;">⚡ Activate Now</button>
+        <button id="rf-utr-back-btn" class="rf-btn-secondary" style="width:100%;font-size:12px;">← Back to Payment</button>
+      </div>
+
+      <!-- ── STEP 4: Success ── -->
+      <div id="rf-upi-step-success" style="display:none;text-align:center;padding:20px 0;">
+        <div style="font-size:52px;margin-bottom:12px;">🎉</div>
+        <div style="font-size:20px;font-weight:800;color:#059669;margin-bottom:6px;">You're Live!</div>
+        <div id="rf-success-plan-label" style="font-size:13px;color:#64748B;margin-bottom:16px;"></div>
+        <div style="background:#F0FDF4;border:1.5px solid #86EFAC;border-radius:12px;padding:12px;font-size:11px;color:#065F46;line-height:1.6;margin-bottom:16px;">
+          Your plan is active. We'll verify your payment within 24 hours. If anything is wrong we'll reach out on WhatsApp.
+        </div>
+        <button id="rf-success-close-btn" class="rf-btn-primary" style="width:100%;">Start Recruiting →</button>
+      </div>
+
     </div>
   </div>
 
