@@ -20,30 +20,12 @@ const DEFAULT_TEMPLATES = [
   }
 ];
 
-// ── Extension icon click → toggle sidebar ─────────────────────────────────
+// ── Extension icon click → open side panel ────────────────────────────────
 chrome.action.onClicked.addListener(async (tab) => {
   if (!tab.url) return;
   if (tab.url.includes('linkedin.com')) {
-    // Mark extension as activated so toggle tab persists across refreshes
-    await chrome.storage.local.set({ recruitflow_active: true });
-    // On LinkedIn — toggle (show/hide) the sidebar
-    try {
-      await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        func: () => {
-          const container = document.getElementById('recruitflow-sidebar-container');
-          if (container) {
-            container.classList.toggle('collapsed');
-          } else {
-            window.dispatchEvent(new CustomEvent('rf-force-inject'));
-          }
-        }
-      });
-    } catch (e) {
-      console.warn('RecruitFlow: could not toggle sidebar', e);
-    }
+    await chrome.sidePanel.open({ tabId: tab.id });
   } else {
-    // Not on LinkedIn — navigate there
     await chrome.tabs.update(tab.id, { url: 'https://www.linkedin.com/feed/' });
   }
 });

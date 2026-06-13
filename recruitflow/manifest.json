@@ -20,15 +20,16 @@
     "service_worker": "background.js",
     "type": "module"
   },
+  "side_panel": { "default_path": "sidepanel.html" },
   "content_scripts": [
     {
       "matches": ["https://www.linkedin.com/*"],
-      "js":  ["content.js", "sidebar.js"],
+      "js":  ["content.js"],
       "css": ["sidebar.css"],
       "run_at": "document_idle"
     }
   ],
-  "permissions": ["storage", "activeTab", "scripting", "identity"],
+  "permissions": ["storage", "activeTab", "scripting", "identity", "sidePanel"],
   "host_permissions": [
     "https://www.linkedin.com/*",
     "https://api.groq.com/*",
