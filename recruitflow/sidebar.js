@@ -967,6 +967,32 @@
       document.getElementById('rf-jd-form-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
 
+    // Generate full JD from title using AI
+    document.getElementById('rf-jd-generate-btn')?.addEventListener('click', async () => {
+      const title = document.getElementById('rf-jd-title')?.value.trim();
+      if (!title) { showToast('Enter a job title first', 'warning'); return; }
+      if (!await canUseAI()) { showUpgradeOverlay(); return; }
+
+      const btn = document.getElementById('rf-jd-generate-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="rf-spinner"></span> Generating…';
+
+      try {
+        const result = await chrome.runtime.sendMessage({ type: 'GENERATE_JD', jobTitle: title });
+        if (result.limitReached) { showUpgradeOverlay(); return; }
+        if (!result.success) { showToast(result.error || 'AI unavailable', 'error'); return; }
+        document.getElementById('rf-jd-text').value = result.jdText;
+        await refreshAIBadge();
+        showToast('JD generated! Review and save.', 'success');
+      } catch (e) {
+        showToast('AI unavailable', 'error');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '✦ Generate JD with AI <span class="rf-ai-uses-badge" id="rf-jd-gen-badge"></span>';
+        await refreshAIBadge();
+      }
+    });
+
     // Cancel edit
     document.getElementById('rf-jd-form-cancel')?.addEventListener('click', resetJDForm);
 
@@ -1023,11 +1049,24 @@
       }
     });
 
-    document.getElementById('rf-jd-accept-btn')?.addEventListener('click', () => {
-      const opt = document.getElementById('rf-pending-optimized')?.value;
-      if (opt) document.getElementById('rf-jd-text').value = opt;
+    document.getElementById('rf-jd-accept-btn')?.addEventListener('click', async () => {
+      const opt   = document.getElementById('rf-pending-optimized')?.value;
+      if (!opt) return;
+      document.getElementById('rf-jd-text').value = opt;
       document.getElementById('rf-optimized-section').style.display = 'none';
-      showToast('Optimized JD applied!', 'success');
+
+      // Auto-save the optimized text into the existing JD record
+      const editId = document.getElementById('rf-jd-save-btn')?.dataset.editId;
+      const title  = document.getElementById('rf-jd-title')?.value.trim();
+      if (editId) {
+        const jds = await getAllJDs();
+        const idx = jds.findIndex(j => j.id === editId);
+        if (idx !== -1) { jds[idx].text = opt; await storageSet({ recruitflow_jds: jds }); }
+      } else if (title) {
+        await saveJD(title, opt);
+      }
+      await renderJDCards();
+      showToast('Optimized JD saved!', 'success');
     });
 
     document.getElementById('rf-jd-reject-btn')?.addEventListener('click', () => {

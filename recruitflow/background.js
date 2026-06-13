@@ -207,6 +207,51 @@ async function handleMessage(message, sender) {
       }
     }
 
+    case 'GENERATE_JD': {
+      const { jobTitle } = message;
+      let usage = await getUsage();
+      usage = await checkAndResetDaily(usage);
+
+      if (!usage.is_pro && (usage.ai_uses_total || 0) >= 3) {
+        return { success: false, limitReached: true };
+      }
+
+      const sysPmt = "You are an expert HR consultant who writes clear, compelling job descriptions that attract top candidates.";
+      const usrPmt = `Write a complete job description for: "${jobTitle}"
+
+Format it exactly like this:
+**About the Role**
+[2 sentence compelling intro]
+
+**Key Responsibilities**
+• [responsibility 1]
+• [responsibility 2]
+• [responsibility 3]
+• [responsibility 4]
+• [responsibility 5]
+
+**Must-Have Skills**
+• [skill 1]
+• [skill 2]
+• [skill 3]
+• [skill 4]
+
+**Good to Have**
+• [nice to have 1]
+• [nice to have 2]
+
+Keep it concise, human, and jargon-free. Return ONLY the JD text.`;
+
+      try {
+        const jdText = await callAI(sysPmt, usrPmt);
+        usage.ai_uses_total = (usage.ai_uses_total || 0) + 1;
+        await chrome.storage.local.set({ recruitflow_usage: usage });
+        return { success: true, jdText };
+      } catch (err) {
+        return { success: false, error: `AI failed: ${err.message}` };
+      }
+    }
+
     case 'OPTIMIZE_JD': {
       const { jdText } = message;
       let usage = await getUsage();

@@ -207,6 +207,9 @@
         <div style="margin-bottom:8px;">
           <textarea id="rf-jd-text" class="rf-textarea" rows="5" placeholder="Paste your job description here…"></textarea>
         </div>
+        <button id="rf-jd-generate-btn" class="rf-btn-ai" style="margin-bottom:8px;">
+          ✦ Generate JD with AI <span class="rf-ai-uses-badge" id="rf-jd-gen-badge"></span>
+        </button>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:8px;">
           <button id="rf-pdf-upload-btn" class="rf-btn-secondary rf-btn-sm">📎 Upload PDF</button>
           <button id="rf-jd-save-btn" class="rf-btn-primary rf-btn-sm">💾 Save JD</button>
