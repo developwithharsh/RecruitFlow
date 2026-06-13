@@ -1303,15 +1303,6 @@
       showToast('All data cleared. Reloading…', 'warning');
       setTimeout(() => location.reload(), 1500);
     });
-
-    // DEV ONLY: reset onboarding — remove before publishing to Chrome Web Store
-    document.getElementById('rf-reset-onboard')?.addEventListener('click', async () => {
-      const s = (await storageGet('recruitflow_settings')) || {};
-      s.onboarding_complete = false;
-      await storageSet({ recruitflow_settings: s });
-      showToast('Onboarding reset. Reloading…', 'success');
-      setTimeout(() => location.reload(), 1500);
-    });
   }
 
   const FREE_SEARCH_LIMIT = 3;

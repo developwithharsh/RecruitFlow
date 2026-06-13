@@ -393,11 +393,7 @@
         <div class="rf-settings-group-title" style="color:#DC2626 !important;">Danger Zone</div>
         <button id="rf-clear-data-btn" class="rf-btn-danger">Clear All Data</button>
       </div>
-      <div class="rf-version-line">RecruitFlow v1.0.0 — Free Tier</div>
-      <!-- DEV ONLY: remove before publishing to Chrome Web Store -->
-      <button id="rf-reset-onboard" class="rf-btn-secondary rf-btn-sm" style="margin-top:8px;font-size:11px;color:#94A3B8 !important;border-color:#E2E8F0 !important;width:100% !important;">
-        ↺ Reset onboarding (dev only)
-      </button>
+      <div class="rf-version-line">RecruitFlow v1.0.0</div>
     </div>
   </div>
 
