@@ -396,10 +396,6 @@
           <div id="rf-settings-activation-msg" class="rf-activation-msg"></div>
         </div>
       </div>
-      <div class="rf-settings-group" style="border-color:#DC2626 !important;">
-        <div class="rf-settings-group-title" style="color:#DC2626 !important;">Danger Zone</div>
-        <button id="rf-clear-data-btn" class="rf-btn-danger">Clear All Data</button>
-      </div>
       <div class="rf-version-line">RecruitFlow v1.0.0</div>
     </div>
   </div>

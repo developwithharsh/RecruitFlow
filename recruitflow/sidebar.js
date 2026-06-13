@@ -1338,12 +1338,6 @@
     document.getElementById('rf-cancel-new-tpl')?.addEventListener('click', () =>
       document.getElementById('rf-add-tpl-modal')?.classList.remove('visible'));
 
-    document.getElementById('rf-clear-data-btn')?.addEventListener('click', async () => {
-      if (!confirm('Delete ALL RecruitFlow data? This cannot be undone.')) return;
-      await chrome.storage.local.clear();
-      showToast('All data cleared. Reloading…', 'warning');
-      setTimeout(() => location.reload(), 1500);
-    });
   }
 
   const FREE_SEARCH_LIMIT = 3;
