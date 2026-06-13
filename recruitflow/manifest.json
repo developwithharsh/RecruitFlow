@@ -33,7 +33,8 @@
     "https://www.linkedin.com/*",
     "https://api.groq.com/*",
     "https://generativelanguage.googleapis.com/*",
-    "https://api.emailjs.com/*"
+    "https://api.emailjs.com/*",
+    "https://api.qrserver.com/*"
   ],
   "web_accessible_resources": [
     {
