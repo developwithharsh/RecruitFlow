@@ -905,6 +905,28 @@
 
       sendBtn.addEventListener('click', async e => {
         e.stopPropagation();
+
+        // ── Daily limit check ─────────────────────────────────────────────
+        const usageRaw = await new Promise(r => chrome.storage.local.get('recruitflow_usage', d => r(d.recruitflow_usage)));
+        const usage = usageRaw || {};
+        const isPro = usage.is_pro || false;
+        const FREE_MSG_LIMIT = 3;
+        const today = new Date().toDateString();
+        // Reset count if it's a new day
+        const dailySent = (usage.last_reset_date === today) ? (usage.daily_messages_sent || 0) : 0;
+        const dailyLimit = isPro ? (usage.daily_limit || 20) : FREE_MSG_LIMIT;
+        if (dailySent >= dailyLimit) {
+          sendBtn.textContent = isPro ? '✗ Daily limit reached' : '✗ Free limit (3/day) reached';
+          sendBtn.style.background = '#DC2626';
+          setTimeout(() => {
+            sendBtn.textContent = '✦ Send Message';
+            sendBtn.style.background = '#2563EB';
+            sendBtn.disabled = false;
+          }, 2500);
+          return;
+        }
+        // ─────────────────────────────────────────────────────────────────
+
         const sendMsg   = msgToggle ? msgToggle.dataset.on === '1' : true;  // no toggles → message only
         const sendJDToo = jdToggle ? jdToggle.dataset.on === '1' : false;
 
