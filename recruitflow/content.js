@@ -418,54 +418,83 @@
     clearTimeout(_rfInjectTimer);
     _rfInjectTimer = setTimeout(() => {
       _doInjectRFButtons();
-      // Retry after 1.5s — catches new-message compose modals that render late
       clearTimeout(_rfRetryTimer);
-      _rfRetryTimer = setTimeout(_doInjectRFButtons, 1500);
-    }, 300);
+      _rfRetryTimer = setTimeout(_doInjectRFButtons, 1200);
+    }, 200);
+  }
+
+  function _findSendBtn(root) {
+    // Walk all buttons inside root, pick the one that is LinkedIn's Send button
+    return Array.from(root.querySelectorAll('button')).find(b => {
+      if (b.classList.contains('rf-toolbar-btn')) return false;
+      const aria = (b.getAttribute('aria-label') || '').toLowerCase();
+      const text = (b.innerText || b.textContent || '').toLowerCase().trim();
+      return b.classList.contains('msg-form__send-button') ||
+             b.getAttribute('data-control-name') === 'send' ||
+             aria === 'send' || aria === 'send message' ||
+             aria.startsWith('send ') ||
+             text === 'send' || text === 'send message';
+    });
   }
 
   function _doInjectRFButtons() {
-    // Clean up RF buttons whose Send sibling is gone
+    // ── 1. Remove stale RF buttons ────────────────────────────────────────────
     document.querySelectorAll('.rf-toolbar-btn').forEach(rfBtn => {
-      const parent = rfBtn.parentNode;
-      if (!parent) { rfBtn.remove(); return; }
-      const hasSend = Array.from(parent.querySelectorAll('button')).some(b => {
-        if (b === rfBtn) return false;
-        const a = (b.getAttribute('aria-label') || '').toLowerCase();
-        const t = (b.innerText || b.textContent || '').toLowerCase().trim();
-        return a.includes('send') || t === 'send' || t === 'send message' ||
-               b.classList.contains('msg-form__send-button');
-      });
-      if (!hasSend) rfBtn.remove();
+      if (!rfBtn.isConnected) return;
+      // Walk up to find the form root; if no send button exists there anymore, remove
+      const form = rfBtn.closest('[class*="msg-form"], form') || rfBtn.parentNode;
+      if (form && !_findSendBtn(form)) rfBtn.remove();
     });
 
-    // Inject next to every LinkedIn Send button found on the page
+    // ── 2. Find every LinkedIn compose box and inject RF next to its Send btn ─
+    // Strategy: locate compose boxes first (reliable), then find their send button
+    const composeSelectors = [
+      '.msg-form__contenteditable',
+      '[contenteditable="true"][data-placeholder*="message" i]',
+      '[contenteditable="true"][aria-placeholder*="message" i]',
+      '[contenteditable="true"][aria-label*="message" i]',
+      '[contenteditable="true"][placeholder*="message" i]',
+    ];
+
+    const seenForms = new Set();
+
+    composeSelectors.forEach(sel => {
+      document.querySelectorAll(sel).forEach(composeEl => {
+        // Walk up to find the enclosing form/container
+        const form = composeEl.closest('[class*="msg-form"], [class*="compose"], form') ||
+                     composeEl.closest('[class*="msg-overlay"], [class*="msg-compose"]') ||
+                     composeEl.parentElement?.parentElement;
+        if (!form || seenForms.has(form)) return;
+        seenForms.add(form);
+
+        // Already has RF button in this form — skip
+        if (form.querySelector('.rf-toolbar-btn')) return;
+
+        const sendBtn = _findSendBtn(form);
+        if (!sendBtn) return;
+
+        // Don't inject inside hidden containers
+        const formStyle = window.getComputedStyle(form);
+        if (formStyle.display === 'none' || formStyle.visibility === 'hidden') return;
+
+        const rfBtn = createRFBtn();
+        sendBtn.parentNode.insertBefore(rfBtn, sendBtn);
+      });
+    });
+
+    // ── 3. Fallback: scan all buttons directly for any Send button missed above
     document.querySelectorAll('button').forEach(sendBtn => {
       if (sendBtn.classList.contains('rf-toolbar-btn')) return;
-
-      const ariaLower   = (sendBtn.getAttribute('aria-label') || '').toLowerCase().trim();
-      const textContent = (sendBtn.innerText || sendBtn.textContent || '').toLowerCase().trim();
-
-      const isSend = ariaLower === 'send' || ariaLower === 'send message' ||
-                     ariaLower.startsWith('send ') || ariaLower.includes('send message') ||
-                     textContent === 'send' || textContent === 'send message' ||
-                     sendBtn.classList.contains('msg-form__send-button') ||
-                     sendBtn.getAttribute('data-control-name') === 'send';
+      const aria = (sendBtn.getAttribute('aria-label') || '').toLowerCase().trim();
+      const text = (sendBtn.innerText || sendBtn.textContent || '').toLowerCase().trim();
+      const isSend = sendBtn.classList.contains('msg-form__send-button') ||
+                     sendBtn.getAttribute('data-control-name') === 'send' ||
+                     aria === 'send' || aria === 'send message' ||
+                     text === 'send' || text === 'send message';
       if (!isSend) return;
-
-      // Skip truly hidden buttons (display:none), but allow disabled/grayed ones
-      const style = window.getComputedStyle(sendBtn);
-      if (style.display === 'none' || style.visibility === 'hidden') return;
-
-      // Dedup: one RF button per parent container
-      const container = sendBtn.closest('.msg-form__right-actions')
-                     || sendBtn.closest('.msg-form__footer')
-                     || sendBtn.closest('.msg-form__actions')
-                     || sendBtn.closest('[class*="msg-form"]')
-                     || sendBtn.closest('form')
-                     || sendBtn.parentNode;
-      if (container && container.querySelector('.rf-toolbar-btn')) return;
-
+      const cs = window.getComputedStyle(sendBtn);
+      if (cs.display === 'none' || cs.visibility === 'hidden') return;
+      if (sendBtn.parentNode?.querySelector('.rf-toolbar-btn')) return;
       const rfBtn = createRFBtn();
       sendBtn.parentNode.insertBefore(rfBtn, sendBtn);
     });
