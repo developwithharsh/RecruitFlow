@@ -412,151 +412,56 @@
     return btn;
   }
 
-  let _rfInjectTimer = null;
-  const _rfRetryTimers = [];
-  function injectRFButtons() {
-    clearTimeout(_rfInjectTimer);
-    _rfRetryTimers.forEach(clearTimeout);
-    _rfRetryTimers.length = 0;
-    _rfInjectTimer = setTimeout(() => {
-      _doInjectRFButtons();
-      // Retry at multiple intervals — catches late-rendering compose modals
-      [600, 1400, 2500, 4000].forEach(ms => {
-        _rfRetryTimers.push(setTimeout(_doInjectRFButtons, ms));
-      });
-    }, 150);
+  // ── RF button injection — polls every 500ms, no complex logic ──────────────
+
+  function _isSendBtn(b) {
+    if (!b || b.classList.contains('rf-toolbar-btn')) return false;
+    const aria = (b.getAttribute('aria-label') || '').toLowerCase();
+    const text = (b.innerText || b.textContent || '').toLowerCase();
+    return b.classList.contains('msg-form__send-button') ||
+           b.getAttribute('data-control-name') === 'send' ||
+           aria === 'send' || aria === 'send message' || aria.startsWith('send ') ||
+           text.trim() === 'send' || text.trim() === 'send message' ||
+           text.startsWith('send\n') || text.startsWith('send ');
   }
 
-  function _injectNextTo(sendBtn) {
-    if (!sendBtn || sendBtn.classList.contains('rf-toolbar-btn')) return;
-    if (sendBtn.parentNode?.querySelector('.rf-toolbar-btn')) return;
-    const rfBtn = createRFBtn();
-    sendBtn.parentNode.insertBefore(rfBtn, sendBtn);
-  }
-
-  function _doInjectRFButtons() {
-    // ── Remove stale RF buttons ───────────────────────────────────────────────
+  function _tryInject() {
+    // Remove stale RF buttons (their Send sibling was removed by LinkedIn re-render)
     document.querySelectorAll('.rf-toolbar-btn').forEach(rfBtn => {
       if (!rfBtn.isConnected) { rfBtn.remove(); return; }
-      const siblings = rfBtn.parentNode
-        ? Array.from(rfBtn.parentNode.querySelectorAll('button')).filter(b => b !== rfBtn)
-        : [];
-      const hasSend = siblings.some(b => {
-        const a = (b.getAttribute('aria-label') || '').toLowerCase();
-        const t = (b.innerText || b.textContent || '').trim().toLowerCase();
-        return b.classList.contains('msg-form__send-button') ||
-               b.getAttribute('data-control-name') === 'send' ||
-               a === 'send' || a === 'send message' || t === 'send';
-      });
+      const parent = rfBtn.parentNode;
+      if (!parent) { rfBtn.remove(); return; }
+      const hasSend = Array.from(parent.querySelectorAll('button')).some(b => b !== rfBtn && _isSendBtn(b));
       if (!hasSend) rfBtn.remove();
     });
 
-    // ── METHOD 1: LinkedIn's stable send-button class ─────────────────────────
-    document.querySelectorAll('button.msg-form__send-button').forEach(_injectNextTo);
-
-    // ── METHOD 2: right-actions toolbar (send button lives here) ─────────────
-    document.querySelectorAll('.msg-form__right-actions').forEach(toolbar => {
-      if (toolbar.querySelector('.rf-toolbar-btn')) return;
-      const sendBtn = Array.from(toolbar.querySelectorAll('button'))
-        .find(b => !b.classList.contains('rf-toolbar-btn'));
-      if (sendBtn) _injectNextTo(sendBtn);
-    });
-
-    // ── METHOD 3: whole footer — find first button inside it ──────────────────
-    document.querySelectorAll('.msg-form__footer').forEach(footer => {
-      if (footer.querySelector('.rf-toolbar-btn')) return;
-      // find rightmost / last button group's first button
-      const rightActions = footer.querySelector('[class*="right-actions"], [class*="right_actions"]');
-      const target = rightActions || footer;
-      const sendBtn = Array.from(target.querySelectorAll('button'))
-        .find(b => !b.classList.contains('rf-toolbar-btn'));
-      if (sendBtn) _injectNextTo(sendBtn);
-    });
-
-    // ── METHOD 4: any button with text/aria "Send" near a compose box ─────────
-    document.querySelectorAll('[contenteditable="true"]').forEach(compose => {
-      // Walk up max 8 levels to find the toolbar area
+    // Find every LinkedIn compose box and inject RF next to its Send button
+    // Use the broadest possible contenteditable selector so no compose window is missed
+    document.querySelectorAll('[contenteditable]').forEach(compose => {
+      // Walk up the DOM — stop when we find a container that also has a Send button
       let el = compose.parentElement;
-      let depth = 0;
-      while (el && depth < 8) {
-        const sendBtn = Array.from(el.querySelectorAll('button')).find(b => {
-          if (b.classList.contains('rf-toolbar-btn')) return false;
-          const a = (b.getAttribute('aria-label') || '').toLowerCase();
-          const t = (b.innerText || b.textContent || '').trim().toLowerCase();
-          return b.classList.contains('msg-form__send-button') ||
-                 b.getAttribute('data-control-name') === 'send' ||
-                 a === 'send' || a === 'send message' || t === 'send';
-        });
-        if (sendBtn) { _injectNextTo(sendBtn); break; }
+      for (let i = 0; i < 12; i++) {
+        if (!el || el === document.body) break;
+
+        const sendBtn = el.querySelector('button.msg-form__send-button') ||
+          Array.from(el.querySelectorAll('button')).find(_isSendBtn);
+
+        if (sendBtn) {
+          if (!sendBtn.parentNode.querySelector('.rf-toolbar-btn')) {
+            const rfBtn = createRFBtn();
+            sendBtn.parentNode.insertBefore(rfBtn, sendBtn);
+          }
+          break;
+        }
         el = el.parentElement;
-        depth++;
       }
     });
   }
 
-  new MutationObserver(injectRFButtons).observe(document.body, { subtree: true, childList: true });
-  injectRFButtons();
-
-  setInterval(_doInjectRFButtons, 2500);
-
-  document.addEventListener('focusin', e => {
-    const el = e.target;
-    if (!el) return;
-    const isCompose = el.classList.contains('msg-form__contenteditable') ||
-      (el.contentEditable === 'true' && (
-        (el.getAttribute('data-placeholder') || '').toLowerCase().includes('message') ||
-        (el.getAttribute('aria-placeholder') || '').toLowerCase().includes('message') ||
-        (el.getAttribute('aria-label') || '').toLowerCase().includes('message')
-      ));
-    if (isCompose) injectRFButtons();
-  }, true);
-
-  // ── FLOATING RF BUTTON — always visible, works everywhere on LinkedIn ────────
-  // This is the reliable path: no dependency on LinkedIn's toolbar DOM at all.
-  function injectFloatingRFBtn() {
-    if (document.getElementById('rf-floating-btn')) return;
-
-    const fab = document.createElement('button');
-    fab.id = 'rf-floating-btn';
-    fab.title = 'RecruitFlow — Quick Send';
-    fab.innerHTML = `
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style="display:block;margin:0 auto 2px;">
-        <path d="M22 2L11 13" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M22 2L15 22 11 13 2 9l20-7z" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-      <span style="font-size:10px;font-weight:800;color:#fff;letter-spacing:-.3px;line-height:1;">RF</span>
-    `;
-    fab.style.cssText = [
-      'position:fixed', 'bottom:88px', 'right:20px', 'z-index:2147483646',
-      'width:52px', 'height:52px', 'border-radius:50%',
-      'background:linear-gradient(135deg,#2563EB,#7C3AED)',
-      'border:none', 'cursor:pointer',
-      'display:flex', 'flex-direction:column', 'align-items:center', 'justify-content:center',
-      'box-shadow:0 4px 20px rgba(37,99,235,.55)',
-      'transition:transform .15s, box-shadow .15s',
-      'font-family:-apple-system,BlinkMacSystemFont,sans-serif'
-    ].join(';');
-
-    fab.addEventListener('mouseenter', () => {
-      fab.style.transform = 'scale(1.1)';
-      fab.style.boxShadow = '0 6px 28px rgba(37,99,235,.75)';
-    });
-    fab.addEventListener('mouseleave', () => {
-      fab.style.transform = 'scale(1)';
-      fab.style.boxShadow = '0 4px 20px rgba(37,99,235,.55)';
-    });
-    fab.addEventListener('click', e => {
-      e.stopPropagation();
-      e.preventDefault();
-      buildCardPopup(fab);
-    });
-
-    document.body.appendChild(fab);
-  }
-
-  injectFloatingRFBtn();
-  // Re-inject if LinkedIn SPA navigation removes it
-  new MutationObserver(() => injectFloatingRFBtn())
-    .observe(document.body, { childList: true });
+  // Poll every 500ms — simple, reliable, no debounce complexity
+  setInterval(_tryInject, 500);
+  // Also run immediately and on DOM changes for faster first injection
+  _tryInject();
+  new MutationObserver(_tryInject).observe(document.body, { childList: true, subtree: true });
 
 })();
