@@ -413,6 +413,8 @@
   }
 
   // ── RF button injection ───────────────────────────────────────────────────
+  // Strategy: scan every button on the page every 400ms + on every DOM change
+  // + on every click/focus/navigation. Works without page refresh on LinkedIn SPA.
 
   console.log('[RecruitFlow] content.js loaded on', window.location.href);
 
@@ -424,7 +426,7 @@
     return s.display !== 'none' && s.visibility !== 'hidden' && s.opacity !== '0';
   }
 
-  // Is this a LinkedIn send button? Match class / aria / data-attr / text.
+  // Match any button that looks like LinkedIn's Send button
   function _isSendBtn(b) {
     if (!b || b.classList.contains('rf-toolbar-btn')) return false;
     const aria = (b.getAttribute('aria-label') || '').toLowerCase();
@@ -436,37 +438,19 @@
            text.startsWith('send ') || text.endsWith(' send');
   }
 
-  // Does this element have a [contenteditable] somewhere in its subtree?
-  function _hasCompose(el) {
-    return !!el.querySelector('[contenteditable]');
-  }
-
-  // Walk UP from `el` to find the nearest ancestor whose subtree also
-  // contains a [contenteditable] — i.e. the shared parent of Send + compose.
-  function _nearestSharedParent(el, maxSteps) {
-    let cur = el.parentElement;
-    for (let i = 0; i < maxSteps; i++) {
-      if (!cur || cur === document.body) return null;
-      if (_hasCompose(cur)) return cur;
-      cur = cur.parentElement;
-    }
-    return null;
-  }
-
   function _injectNextTo(sendBtn) {
     if (!sendBtn || !sendBtn.parentNode) return;
     const parent = sendBtn.parentNode;
     if (parent.querySelector('.rf-toolbar-btn')) return;
     const rfBtn = createRFBtn();
     parent.insertBefore(rfBtn, sendBtn);
-    console.log('[RecruitFlow] ✅ Injected | tag:', sendBtn.tagName,
-      '| cls:', (sendBtn.className||'').slice(0,60),
-      '| aria:', sendBtn.getAttribute('aria-label'),
-      '| text:', (sendBtn.innerText||'').trim().slice(0,20));
+    console.log('[RecruitFlow] ✅ RF injected next to:', sendBtn.tagName,
+      (sendBtn.className||'').slice(0,50), '| aria:', sendBtn.getAttribute('aria-label'),
+      '| text:', (sendBtn.innerText||'').trim().slice(0,15));
   }
 
   function _tryInject() {
-    // ── Cleanup: remove RF buttons whose Send sibling is gone ─────────────
+    // Remove RF buttons whose Send sibling disappeared
     document.querySelectorAll('.rf-toolbar-btn').forEach(rfBtn => {
       if (!rfBtn.isConnected || !rfBtn.parentNode) { rfBtn.remove(); return; }
       const hasSend = Array.from(rfBtn.parentNode.querySelectorAll('button,[role="button"]'))
@@ -474,52 +458,79 @@
       if (!hasSend) rfBtn.remove();
     });
 
-    // ── Core: scan EVERY button/[role=button] on the page ────────────────
-    // For each one that looks like a Send button AND has a compose area
-    // somewhere in the same DOM branch, inject RF next to it.
-    // This works regardless of how deep or separate the DOM branches are.
+    // Scan EVERY button on the page — find Send buttons, inject RF next to each
     document.querySelectorAll('button, [role="button"]').forEach(btn => {
       if (btn.classList.contains('rf-toolbar-btn')) return;
-      if (!_isVisible(btn)) return;
       if (!_isSendBtn(btn)) return;
-      // Already has RF sibling?
       if (btn.parentNode && btn.parentNode.querySelector('.rf-toolbar-btn')) return;
-      // Verify it's actually part of a messaging compose UI
-      // by checking if walking up finds a [contenteditable] in the same subtree
-      const shared = _nearestSharedParent(btn, 40);
-      if (shared) {
-        _injectNextTo(btn);
-      } else {
-        // The compose box might be a sibling of the footer, not inside the dialog.
-        // Fall back: check if any visible [contenteditable] is within 600px on screen.
-        const br = btn.getBoundingClientRect();
-        const nearby = Array.from(document.querySelectorAll('[contenteditable]')).some(ce => {
-          const cr = ce.getBoundingClientRect();
-          return cr.width > 80 && Math.abs(br.left - cr.left) < 600 &&
-                 br.top > cr.top && br.top - cr.bottom < 300;
-        });
-        if (nearby) _injectNextTo(btn);
+
+      // Confirm it's a messaging Send button (not a Search/Reply-in-post send)
+      // Method 1: walk up to find a shared ancestor with [contenteditable]
+      let inCompose = false;
+      let cur = btn.parentElement;
+      for (let i = 0; i < 40; i++) {
+        if (!cur || cur === document.body) break;
+        if (cur.querySelector('[contenteditable]')) { inCompose = true; break; }
+        cur = cur.parentElement;
       }
+
+      // Method 2 (fallback): position-based — a compose box is nearby on screen
+      if (!inCompose && _isVisible(btn)) {
+        const br = btn.getBoundingClientRect();
+        inCompose = Array.from(document.querySelectorAll('[contenteditable]')).some(ce => {
+          const cr = ce.getBoundingClientRect();
+          return cr.width > 80 && cr.height > 15 &&
+                 br.top >= cr.top - 20 &&            // Send is at or below compose top
+                 br.top <= cr.bottom + 250 &&         // Send is within 250px below compose
+                 Math.abs(br.left - cr.left) < 700;  // horizontally overlapping
+        });
+      }
+
+      if (inCompose) _injectNextTo(btn);
     });
   }
 
-  // Debug: every 3s log all visible send-like buttons on page (first 4 times)
-  let _dbgN = 0;
-  setInterval(() => {
-    if (_dbgN++ >= 4) return;
-    const found = Array.from(document.querySelectorAll('button,[role="button"]'))
-      .filter(b => !b.classList.contains('rf-toolbar-btn') && _isVisible(b));
-    console.log('[RecruitFlow] 📸 All visible buttons (' + found.length + '):',
-      found.map(b => ({
-        tag: b.tagName, cls: (b.className||'').slice(0,50),
-        aria: b.getAttribute('aria-label'), text: (b.innerText||'').trim().slice(0,20),
-        isSend: _isSendBtn(b)
-      }))
-    );
-  }, 3000);
+  // Burst-retry: run _tryInject N times with spacing (catches delayed renders)
+  function _burstInject(times, gap) {
+    let i = 0;
+    const run = () => { _tryInject(); if (++i < times) setTimeout(run, gap); };
+    run();
+  }
 
+  // ── Triggers — fire on every possible way a compose box can appear ────────
+
+  // 1. Periodic poll — catches anything missed
   setInterval(_tryInject, 400);
-  _tryInject();
-  new MutationObserver(() => _tryInject()).observe(document.body, { childList: true, subtree: true });
-    console.log('[RecruitFlow] 📸 compose containers found:', containers.size);
+
+  // 2. DOM mutations (LinkedIn SPA updates, React re-renders)
+  new MutationObserver(() => _tryInject())
+    .observe(document.body, { childList: true, subtree: true });
+
+  // 3. Every click — could open a chat thread or new-message modal
+  document.addEventListener('click', () => _burstInject(6, 300), true);
+
+  // 4. Every contenteditable focus — compose box just became active
+  document.addEventListener('focusin', e => {
+    if (e.target && e.target.isContentEditable) _burstInject(5, 250);
+  }, true);
+
+  // 5. SPA URL/hash navigation
+  window.addEventListener('popstate', () => _burstInject(8, 400));
+  window.addEventListener('hashchange', () => _burstInject(8, 400));
+
+  // 6. LinkedIn uses pushState for navigation — patch it
+  const _origPush = history.pushState.bind(history);
+  history.pushState = function(...args) {
+    _origPush(...args);
+    _burstInject(8, 400);
+  };
+  const _origReplace = history.replaceState.bind(history);
+  history.replaceState = function(...args) {
+    _origReplace(...args);
+    _burstInject(5, 300);
+  };
+
+  // 7. Run immediately on load
+  _burstInject(5, 500);
+
 })();
