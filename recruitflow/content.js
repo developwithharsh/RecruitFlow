@@ -413,47 +413,84 @@
   }
 
   let _rfInjectTimer = null;
-  let _rfRetryTimer  = null;
+  const _rfRetryTimers = [];
   function injectRFButtons() {
     clearTimeout(_rfInjectTimer);
+    _rfRetryTimers.forEach(clearTimeout);
+    _rfRetryTimers.length = 0;
     _rfInjectTimer = setTimeout(() => {
       _doInjectRFButtons();
-      clearTimeout(_rfRetryTimer);
-      _rfRetryTimer = setTimeout(_doInjectRFButtons, 1000);
+      // Retry at multiple intervals — catches late-rendering compose modals
+      [600, 1400, 2500, 4000].forEach(ms => {
+        _rfRetryTimers.push(setTimeout(_doInjectRFButtons, ms));
+      });
     }, 150);
+  }
+
+  function _injectNextTo(sendBtn) {
+    if (!sendBtn || sendBtn.classList.contains('rf-toolbar-btn')) return;
+    if (sendBtn.parentNode?.querySelector('.rf-toolbar-btn')) return;
+    const rfBtn = createRFBtn();
+    sendBtn.parentNode.insertBefore(rfBtn, sendBtn);
   }
 
   function _doInjectRFButtons() {
     // ── Remove stale RF buttons ───────────────────────────────────────────────
     document.querySelectorAll('.rf-toolbar-btn').forEach(rfBtn => {
-      if (!rfBtn.isConnected || !rfBtn.parentNode) { rfBtn.remove(); return; }
-      // Remove if the send button sibling is gone
-      const hasSend = !!rfBtn.parentNode.querySelector('button.msg-form__send-button, [data-control-name="send"]') ||
-        Array.from(rfBtn.parentNode.querySelectorAll('button')).some(b => {
-          if (b === rfBtn) return false;
-          const a = (b.getAttribute('aria-label') || '').toLowerCase();
-          const t = (b.innerText || b.textContent || '').toLowerCase().trim();
-          return a === 'send' || a === 'send message' || t === 'send' || t === 'send message';
-        });
+      if (!rfBtn.isConnected) { rfBtn.remove(); return; }
+      const siblings = rfBtn.parentNode
+        ? Array.from(rfBtn.parentNode.querySelectorAll('button')).filter(b => b !== rfBtn)
+        : [];
+      const hasSend = siblings.some(b => {
+        const a = (b.getAttribute('aria-label') || '').toLowerCase();
+        const t = (b.innerText || b.textContent || '').trim().toLowerCase();
+        return b.classList.contains('msg-form__send-button') ||
+               b.getAttribute('data-control-name') === 'send' ||
+               a === 'send' || a === 'send message' || t === 'send';
+      });
       if (!hasSend) rfBtn.remove();
     });
 
-    // ── PRIMARY: target LinkedIn's own send button class directly ─────────────
-    // msg-form__send-button appears in ALL LinkedIn chat contexts:
-    // existing conversations, new message modal, chat overlays, InMail
-    document.querySelectorAll('button.msg-form__send-button').forEach(sendBtn => {
-      if (sendBtn.parentNode?.querySelector('.rf-toolbar-btn')) return; // already done
-      const rfBtn = createRFBtn();
-      sendBtn.parentNode.insertBefore(rfBtn, sendBtn);
+    // ── METHOD 1: LinkedIn's stable send-button class ─────────────────────────
+    document.querySelectorAll('button.msg-form__send-button').forEach(_injectNextTo);
+
+    // ── METHOD 2: right-actions toolbar (send button lives here) ─────────────
+    document.querySelectorAll('.msg-form__right-actions').forEach(toolbar => {
+      if (toolbar.querySelector('.rf-toolbar-btn')) return;
+      const sendBtn = Array.from(toolbar.querySelectorAll('button'))
+        .find(b => !b.classList.contains('rf-toolbar-btn'));
+      if (sendBtn) _injectNextTo(sendBtn);
     });
 
-    // ── FALLBACK: aria-label / text / data-control-name ──────────────────────
-    document.querySelectorAll('button[data-control-name="send"], button[aria-label="Send"], button[aria-label="send message"]').forEach(sendBtn => {
-      if (sendBtn.classList.contains('rf-toolbar-btn')) return;
-      if (sendBtn.classList.contains('msg-form__send-button')) return; // already handled above
-      if (sendBtn.parentNode?.querySelector('.rf-toolbar-btn')) return;
-      const rfBtn = createRFBtn();
-      sendBtn.parentNode.insertBefore(rfBtn, sendBtn);
+    // ── METHOD 3: whole footer — find first button inside it ──────────────────
+    document.querySelectorAll('.msg-form__footer').forEach(footer => {
+      if (footer.querySelector('.rf-toolbar-btn')) return;
+      // find rightmost / last button group's first button
+      const rightActions = footer.querySelector('[class*="right-actions"], [class*="right_actions"]');
+      const target = rightActions || footer;
+      const sendBtn = Array.from(target.querySelectorAll('button'))
+        .find(b => !b.classList.contains('rf-toolbar-btn'));
+      if (sendBtn) _injectNextTo(sendBtn);
+    });
+
+    // ── METHOD 4: any button with text/aria "Send" near a compose box ─────────
+    document.querySelectorAll('[contenteditable="true"]').forEach(compose => {
+      // Walk up max 8 levels to find the toolbar area
+      let el = compose.parentElement;
+      let depth = 0;
+      while (el && depth < 8) {
+        const sendBtn = Array.from(el.querySelectorAll('button')).find(b => {
+          if (b.classList.contains('rf-toolbar-btn')) return false;
+          const a = (b.getAttribute('aria-label') || '').toLowerCase();
+          const t = (b.innerText || b.textContent || '').trim().toLowerCase();
+          return b.classList.contains('msg-form__send-button') ||
+                 b.getAttribute('data-control-name') === 'send' ||
+                 a === 'send' || a === 'send message' || t === 'send';
+        });
+        if (sendBtn) { _injectNextTo(sendBtn); break; }
+        el = el.parentElement;
+        depth++;
+      }
     });
   }
 
