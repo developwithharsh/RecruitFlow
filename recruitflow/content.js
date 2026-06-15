@@ -424,28 +424,31 @@
     return s.display !== 'none' && s.visibility !== 'hidden' && s.opacity !== '0';
   }
 
-  // Walk up from `el` at most `maxSteps` levels; return first ancestor whose
-  // subtree also contains `[contenteditable]` — that's our compose container.
-  function _findComposeContainer(el, maxSteps) {
-    let cur = el.parentElement;
+  // Walk up from a contenteditable until we find a container that holds BOTH
+  // the contenteditable AND at least one button/[role=button] — that's the
+  // real compose form (not just the text area's wrapper).
+  function _findComposeContainer(ce, maxSteps) {
+    let cur = ce.parentElement;
     for (let i = 0; i < maxSteps; i++) {
       if (!cur || cur === document.body) return null;
-      if (cur.querySelector('[contenteditable]')) return cur;
+      const btns = cur.querySelectorAll('button, [role="button"]');
+      // Found a container with both the compose box and at least one button
+      if (btns.length >= 1 && cur.querySelector('[contenteditable]')) return cur;
       cur = cur.parentElement;
     }
     return null;
   }
 
-  // Is b a "send" button by name/class/aria?  broad but not too wide.
+  // Is b a "send" button by name/class/aria/text?
   function _isSendBtn(b) {
     if (!b || b.classList.contains('rf-toolbar-btn')) return false;
     const aria = (b.getAttribute('aria-label') || '').toLowerCase();
     const cls  = (typeof b.className === 'string' ? b.className : '').toLowerCase();
     const ctrl = (b.getAttribute('data-control-name') || '').toLowerCase();
     const text = (b.innerText || b.textContent || '').toLowerCase().replace(/\s+/g,' ').trim();
-    return cls.includes('send') || ctrl.includes('send') ||
-           aria.includes('send') || text === 'send' || text === 'send message' ||
-           text.startsWith('send ');
+    return cls.includes('send') || ctrl.includes('send') || aria.includes('send') ||
+           text === 'send' || text === 'send message' || text.startsWith('send ') ||
+           text.endsWith(' send') || text.includes('send message');
   }
 
   // Given a compose container, find the best "send" button inside it.
@@ -526,12 +529,12 @@
   }
 
   function _tryInject() {
-    // Remove stale RF buttons whose container no longer has a visible send area
+    // Remove stale RF buttons whose parent no longer has any other buttons
     document.querySelectorAll('.rf-toolbar-btn').forEach(rfBtn => {
       if (!rfBtn.isConnected || !rfBtn.parentNode) { rfBtn.remove(); return; }
-      // Keep only if its sibling context still looks like a compose footer
-      const hasComposeNearby = _findComposeContainer(rfBtn, 30);
-      if (!hasComposeNearby) rfBtn.remove();
+      const siblings = Array.from(rfBtn.parentNode.querySelectorAll('button, [role="button"]'))
+        .filter(b => b !== rfBtn);
+      if (!siblings.length) rfBtn.remove();
     });
 
     // For every compose container, find + inject next to its send button
