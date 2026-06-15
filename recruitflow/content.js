@@ -511,4 +511,52 @@
     if (isCompose) injectRFButtons();
   }, true);
 
+  // ── FLOATING RF BUTTON — always visible, works everywhere on LinkedIn ────────
+  // This is the reliable path: no dependency on LinkedIn's toolbar DOM at all.
+  function injectFloatingRFBtn() {
+    if (document.getElementById('rf-floating-btn')) return;
+
+    const fab = document.createElement('button');
+    fab.id = 'rf-floating-btn';
+    fab.title = 'RecruitFlow — Quick Send';
+    fab.innerHTML = `
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style="display:block;margin:0 auto 2px;">
+        <path d="M22 2L11 13" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M22 2L15 22 11 13 2 9l20-7z" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span style="font-size:10px;font-weight:800;color:#fff;letter-spacing:-.3px;line-height:1;">RF</span>
+    `;
+    fab.style.cssText = [
+      'position:fixed', 'bottom:88px', 'right:20px', 'z-index:2147483646',
+      'width:52px', 'height:52px', 'border-radius:50%',
+      'background:linear-gradient(135deg,#2563EB,#7C3AED)',
+      'border:none', 'cursor:pointer',
+      'display:flex', 'flex-direction:column', 'align-items:center', 'justify-content:center',
+      'box-shadow:0 4px 20px rgba(37,99,235,.55)',
+      'transition:transform .15s, box-shadow .15s',
+      'font-family:-apple-system,BlinkMacSystemFont,sans-serif'
+    ].join(';');
+
+    fab.addEventListener('mouseenter', () => {
+      fab.style.transform = 'scale(1.1)';
+      fab.style.boxShadow = '0 6px 28px rgba(37,99,235,.75)';
+    });
+    fab.addEventListener('mouseleave', () => {
+      fab.style.transform = 'scale(1)';
+      fab.style.boxShadow = '0 4px 20px rgba(37,99,235,.55)';
+    });
+    fab.addEventListener('click', e => {
+      e.stopPropagation();
+      e.preventDefault();
+      buildCardPopup(fab);
+    });
+
+    document.body.appendChild(fab);
+  }
+
+  injectFloatingRFBtn();
+  // Re-inject if LinkedIn SPA navigation removes it
+  new MutationObserver(() => injectFloatingRFBtn())
+    .observe(document.body, { childList: true });
+
 })();
