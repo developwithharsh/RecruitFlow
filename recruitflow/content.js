@@ -414,7 +414,17 @@
 
   // ── RF button injection ───────────────────────────────────────────────────
 
-  console.log('[RecruitFlow] content.js v7 loaded on', window.location.href);
+  // Proof-of-life banner (disappears after 3s)
+  try {
+    const banner = document.createElement('div');
+    banner.id = 'rf-alive-banner';
+    banner.textContent = '⚡ RecruitFlow loaded';
+    banner.style.cssText = 'position:fixed;bottom:10px;left:10px;z-index:2147483647;background:#2563EB;color:#fff;padding:6px 12px;border-radius:8px;font-size:13px;font-weight:700;font-family:sans-serif;pointer-events:none;';
+    document.body.appendChild(banner);
+    setTimeout(() => banner.remove(), 3000);
+  } catch (_) {}
+
+  console.log('[RecruitFlow] v8 loaded on', window.location.href);
 
   function _isSendBtn(b) {
     try {
@@ -424,141 +434,129 @@
       const ctrl = (b.getAttribute('data-control-name') || '').toLowerCase();
       const text = (b.textContent || '').toLowerCase().replace(/\s+/g, ' ').trim();
       return cls.includes('send') || ctrl.includes('send') || aria.includes('send') ||
-             text === 'send' || text.startsWith('send') || text.endsWith('send') ||
-             text.includes('send message');
+             text === 'send' || text.startsWith('send') || text.endsWith('send');
     } catch (_) { return false; }
   }
 
-  function _injectNextTo(sendBtn) {
+  function _injectNextTo(btn) {
     try {
-      if (!sendBtn || !sendBtn.parentNode) return;
-      if (sendBtn.parentNode.querySelector('.rf-toolbar-btn')) return;
+      if (!btn || !btn.parentNode) return;
+      if (btn.parentNode.querySelector('.rf-toolbar-btn')) return;
       const rfBtn = createRFBtn();
-      sendBtn.parentNode.insertBefore(rfBtn, sendBtn);
-      console.log('[RecruitFlow] ✅ Injected next to:', sendBtn.tagName,
-        (sendBtn.className || '').slice(0, 60),
-        '| text:', (sendBtn.textContent || '').trim().slice(0, 20));
+      btn.parentNode.insertBefore(rfBtn, btn);
+      console.log('[RecruitFlow] ✅ Injected next to:', btn.tagName,
+        (btn.className||'').slice(0,60), '| text:', (btn.textContent||'').trim().slice(0,15));
     } catch (e) { console.warn('[RecruitFlow] inject err:', e.message); }
-  }
-
-  // PRIMARY STRATEGY: start from [contenteditable], walk UP one level at a time,
-  // at each level scan SIBLING elements that follow it for buttons.
-  // This is correct because LinkedIn's compose box and footer are siblings.
-  function _injectFromCompose(ce) {
-    try {
-      let cur = ce.parentElement;
-      for (let level = 0; level < 20; level++) {
-        if (!cur || !cur.parentElement || cur === document.body) break;
-        const parent = cur.parentElement;
-        const kids   = Array.from(parent.children);
-        const idx    = kids.indexOf(cur);
-
-        // Look at all siblings that come AFTER the current element
-        for (let j = idx + 1; j < kids.length; j++) {
-          const sib = kids[j];
-          // Skip if already has RF
-          if (sib.querySelector('.rf-toolbar-btn')) return;
-          const btns = Array.from(sib.querySelectorAll('button, [role="button"]'))
-                         .filter(b => !b.classList.contains('rf-toolbar-btn'));
-          if (btns.length === 0) continue;
-          // Found a sibling with buttons — it's the footer toolbar
-          // Prefer a named send button, otherwise use the last button (rightmost)
-          const sendBtn = btns.find(_isSendBtn) || btns[btns.length - 1];
-          _injectNextTo(sendBtn);
-          return;
-        }
-
-        // Also check siblings BEFORE (some UIs put toolbar above)
-        for (let j = idx - 1; j >= 0; j--) {
-          const sib = kids[j];
-          if (sib.querySelector('.rf-toolbar-btn')) return;
-          const btns = Array.from(sib.querySelectorAll('button, [role="button"]'))
-                         .filter(b => !b.classList.contains('rf-toolbar-btn'));
-          if (btns.length === 0) continue;
-          const sendBtn = btns.find(_isSendBtn);
-          if (sendBtn) { _injectNextTo(sendBtn); return; }
-        }
-
-        cur = parent;
-      }
-    } catch (e) { console.warn('[RecruitFlow] compose-scan err:', e.message); }
-  }
-
-  // SECONDARY STRATEGY: walk UP from the Send button and look for [contenteditable]
-  // in the ancestor subtree (works when compose and footer are nested together).
-  function _injectFromSend(btn) {
-    try {
-      let cur = btn.parentElement;
-      for (let i = 0; i < 50; i++) {
-        if (!cur || cur === document.body) break;
-        if (cur.querySelector('[contenteditable]')) {
-          // Found shared ancestor — this Send button is part of a compose form
-          if (!btn.parentNode.querySelector('.rf-toolbar-btn')) _injectNextTo(btn);
-          return;
-        }
-        cur = cur.parentElement;
-      }
-    } catch (_) {}
-  }
-
-  // TERTIARY: position-based — any [contenteditable] rendered above and near this Send btn
-  function _injectByPosition(btn) {
-    try {
-      if (btn.parentNode && btn.parentNode.querySelector('.rf-toolbar-btn')) return;
-      const br = btn.getBoundingClientRect();
-      if (br.width < 1) return;
-      const nearby = Array.from(document.querySelectorAll('[contenteditable]')).some(ce => {
-        try {
-          const cr = ce.getBoundingClientRect();
-          return cr.width > 60 && cr.height > 5 &&
-                 br.top >= cr.top - 50 && br.top <= cr.bottom + 350 &&
-                 Math.abs((br.left + br.right) / 2 - (cr.left + cr.right) / 2) < 800;
-        } catch (_) { return false; }
-      });
-      if (nearby) _injectNextTo(btn);
-    } catch (_) {}
   }
 
   function _tryInject() {
     try {
-      // Cleanup stale RF buttons
+      // ── Cleanup ──────────────────────────────────────────────────────────
       document.querySelectorAll('.rf-toolbar-btn').forEach(rfBtn => {
         try {
           if (!rfBtn.isConnected || !rfBtn.parentNode) { rfBtn.remove(); return; }
           const hasSend = Array.from(rfBtn.parentNode.querySelectorAll('button,[role="button"]'))
             .some(b => b !== rfBtn && _isSendBtn(b));
-          // Keep if next sibling or parent still has send context
-          if (!hasSend && !rfBtn.closest('[contenteditable]')) rfBtn.remove();
+          if (!hasSend) rfBtn.remove();
         } catch (_) {}
       });
 
-      // PRIMARY: start from every [contenteditable] and find sibling footer
+      // ── TIER 1: direct LinkedIn class selectors (fastest) ────────────────
+      [
+        '.msg-form__send-button',
+        '[data-control-name="send"]',
+        '[data-control-name="send_message"]',
+        '[class*="send-button"]',
+        '[class*="send_button"]',
+        '[class*="sendButton"]',
+        '[class*="send-btn"]',
+      ].forEach(sel => {
+        try {
+          document.querySelectorAll(sel).forEach(btn => {
+            if (!btn.classList.contains('rf-toolbar-btn'))
+              _injectNextTo(btn);
+          });
+        } catch (_) {}
+      });
+
+      // ── TIER 2: sibling detection from [contenteditable] ─────────────────
+      // LinkedIn compose box and footer toolbar are SIBLINGS.
+      // Walk up from contenteditable → at each level look at following siblings.
       document.querySelectorAll('[contenteditable]').forEach(ce => {
         try {
-          // Skip if already injected in the same compose area
           let cur = ce.parentElement;
-          for (let i = 0; i < 20; i++) {
-            if (!cur || cur === document.body) break;
-            if (cur.querySelector('.rf-toolbar-btn')) return;
-            cur = cur.parentElement;
+          for (let level = 0; level < 20; level++) {
+            if (!cur || !cur.parentElement || cur === document.body) break;
+            const parent = cur.parentElement;
+            const kids   = Array.from(parent.children);
+            const idx    = kids.indexOf(cur);
+
+            // Check all siblings AFTER cur (footer is below compose)
+            for (let j = idx + 1; j < kids.length; j++) {
+              const sib  = kids[j];
+              if (sib.querySelector('.rf-toolbar-btn')) return; // done
+              const btns = Array.from(sib.querySelectorAll('button, [role="button"]'))
+                             .filter(b => !b.classList.contains('rf-toolbar-btn'));
+              if (!btns.length) continue;
+              // Prefer named send, fallback to last button
+              const sendBtn = btns.find(_isSendBtn) || btns[btns.length - 1];
+              _injectNextTo(sendBtn);
+              return; // injected — stop walking for this contenteditable
+            }
+
+            // Also check siblings BEFORE (in case toolbar is above)
+            for (let j = idx - 1; j >= 0; j--) {
+              const sib  = kids[j];
+              if (sib.querySelector('.rf-toolbar-btn')) return;
+              const btns = Array.from(sib.querySelectorAll('button, [role="button"]'))
+                             .filter(b => !b.classList.contains('rf-toolbar-btn'));
+              const sendBtn = btns.find(_isSendBtn);
+              if (sendBtn) { _injectNextTo(sendBtn); return; }
+            }
+
+            cur = parent;
           }
-          _injectFromCompose(ce);
         } catch (_) {}
       });
 
-      // SECONDARY: also scan for Send buttons and verify they have a compose context
+      // ── TIER 3: walk UP from every send button ────────────────────────────
       document.querySelectorAll('button, [role="button"]').forEach(btn => {
         try {
           if (btn.classList.contains('rf-toolbar-btn')) return;
           if (!_isSendBtn(btn)) return;
           if (btn.parentNode && btn.parentNode.querySelector('.rf-toolbar-btn')) return;
-          _injectFromSend(btn);
-          // If still not injected, try position
-          if (btn.parentNode && !btn.parentNode.querySelector('.rf-toolbar-btn')) {
-            _injectByPosition(btn);
+
+          let cur = btn.parentElement;
+          for (let i = 0; i < 50; i++) {
+            if (!cur || cur === document.body) break;
+            if (cur.querySelector('[contenteditable]')) {
+              _injectNextTo(btn); return;
+            }
+            cur = cur.parentElement;
           }
         } catch (_) {}
       });
+
+      // ── TIER 4: position-based ────────────────────────────────────────────
+      document.querySelectorAll('button, [role="button"]').forEach(btn => {
+        try {
+          if (btn.classList.contains('rf-toolbar-btn')) return;
+          if (!_isSendBtn(btn)) return;
+          if (btn.parentNode && btn.parentNode.querySelector('.rf-toolbar-btn')) return;
+          const br = btn.getBoundingClientRect();
+          if (br.width < 1) return;
+          const near = Array.from(document.querySelectorAll('[contenteditable]')).some(ce => {
+            try {
+              const cr = ce.getBoundingClientRect();
+              return cr.width > 60 && br.top >= cr.top - 50 &&
+                     br.top <= cr.bottom + 350 &&
+                     Math.abs((br.left + br.right)/2 - (cr.left + cr.right)/2) < 900;
+            } catch (_) { return false; }
+          });
+          if (near) _injectNextTo(btn);
+        } catch (_) {}
+      });
+
     } catch (e) { console.warn('[RecruitFlow] _tryInject err:', e.message); }
   }
 
@@ -579,3 +577,4 @@
   _burst(10, 600);
 
 })();
+
