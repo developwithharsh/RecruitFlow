@@ -403,8 +403,8 @@
       'background:#EFF6FF', 'border:1.5px solid #2563EB', 'border-radius:7px',
       'padding:0 8px', 'height:32px', 'cursor:pointer',
       'font-family:-apple-system,BlinkMacSystemFont,sans-serif',
-      'transition:background .15s', 'flex-shrink:0', 'margin-right:6px',
-      'vertical-align:middle'
+      'transition:background .15s', 'flex-shrink:0', 'margin-right:4px',
+      'vertical-align:middle', 'box-sizing:border-box'
     ].join(';');
     btn.addEventListener('mouseenter', () => { btn.style.background = '#DBEAFE'; });
     btn.addEventListener('mouseleave', () => { btn.style.background = '#EFF6FF'; });
@@ -416,122 +416,75 @@
   //  RF BUTTON — exactly one, immediately left of every LinkedIn Send button
   // ════════════════════════════════════════════════════════════════════════
 
-  // Is this button LinkedIn's Send button?
+  // Strict Send-button detection — avoids matching "Send InMail", "Send note" etc.
   function rfIsSend(b) {
     if (!b) return false;
     if (b.classList.contains('rf-toolbar-btn')) return false;
-    if (b.getAttribute('data-rf-done')) return false;  // already handled
-    const aria = (b.getAttribute('aria-label') || '').toLowerCase();
-    const cls  = (typeof b.className === 'string' ? b.className : '').toLowerCase();
-    const ctrl = (b.getAttribute('data-control-name') || '').toLowerCase();
+    if (b.getAttribute('data-rf-done')) return false;
     const text = (b.textContent || '').replace(/\s+/g,' ').trim().toLowerCase();
+    const aria = (b.getAttribute('aria-label') || '').toLowerCase().trim();
+    const cls  = (typeof b.className === 'string' ? b.className : '').toLowerCase();
+    // Only match the exact messaging Send button
     return text === 'send' ||
-           text.startsWith('send ') ||
            aria === 'send' ||
-           aria.startsWith('send ') ||
-           cls.includes('msg-form__send') ||
-           ctrl === 'send' ||
-           ctrl.includes('send');
+           aria === 'send message' ||
+           cls.includes('msg-form__send');
   }
 
-  // Inject RF immediately before sendBtn (once only per button)
+  // Walk UP from btn to find a compose input within 20 ancestor levels
+  function rfHasComposeNearby(btn) {
+    const COMPOSE = '[contenteditable], [role="textbox"], .msg-form__contenteditable';
+    let el = btn.parentElement;
+    for (let i = 0; i < 20; i++) {
+      if (!el || el === document.body) break;
+      if (el.querySelector(COMPOSE)) return true;
+      el = el.parentElement;
+    }
+    return false;
+  }
+
+  // Inject RF immediately before sendBtn (once only per button element)
   function rfInject(sendBtn) {
     if (!sendBtn || !sendBtn.parentNode) return;
-    if (sendBtn.getAttribute('data-rf-done')) return;        // already done
-    // Check immediate left sibling — if already RF, skip
+    if (sendBtn.getAttribute('data-rf-done')) return;
     const prev = sendBtn.previousElementSibling;
-    if (prev && prev.classList.contains('rf-toolbar-btn')) return;
-    sendBtn.setAttribute('data-rf-done', '1');               // mark permanently
+    if (prev && prev.classList.contains('rf-toolbar-btn')) {
+      // Already has RF — just mark the send button so cleanup keeps it
+      sendBtn.setAttribute('data-rf-done', '1');
+      return;
+    }
+    sendBtn.setAttribute('data-rf-done', '1');
     const rfBtn = createRFBtn();
     sendBtn.parentNode.insertBefore(rfBtn, sendBtn);
-    console.log('[RF] ✅ injected | text:', (sendBtn.textContent||'').trim().slice(0,15),
-      '| cls:', (sendBtn.className||'').slice(0,50));
-  }
-
-  // Scan a single container element for compose+send and inject RF
-  function rfScanContainer(root) {
-    // Find a Send button inside root
-    const sendBtn = Array.from(root.querySelectorAll('button, [role="button"]'))
-      .find(b => rfIsSend(b));
-    if (!sendBtn) return;
-
-    // Confirm there's also a compose input somewhere in root
-    const hasCompose = !!(
-      root.querySelector('[contenteditable]') ||
-      root.querySelector('[role="textbox"]') ||
-      root.querySelector('.msg-form__contenteditable') ||
-      root.querySelector('[data-placeholder]') ||
-      root.querySelector('[aria-placeholder]')
-    );
-    if (hasCompose) rfInject(sendBtn);
   }
 
   function rfScan() {
-    // ── Cleanup: remove RF buttons whose Send sibling is gone ─────────────
+    // Cleanup: remove RF buttons whose next sibling is no longer a marked Send
     document.querySelectorAll('.rf-toolbar-btn').forEach(rf => {
       if (!rf.isConnected || !rf.parentNode) { rf.remove(); return; }
-      // Keep RF only if next sibling is a done Send button
       const next = rf.nextElementSibling;
       if (!next || !next.getAttribute('data-rf-done')) rf.remove();
     });
 
-    // ── Walk UP from every compose input ──────────────────────────────────
-    // At each ancestor level, rfScanContainer looks for BOTH a Send button
-    // and a compose input. The first level that has both = the form container.
-    const COMPOSE_SEL = '[contenteditable], [role="textbox"], .msg-form__contenteditable';
-    const seenContainers = new Set();
-
-    document.querySelectorAll(COMPOSE_SEL).forEach(compose => {
-      let el = compose.parentElement;
-      for (let i = 0; i < 40; i++) {
-        if (!el || el === document.body) break;
-        if (seenContainers.has(el)) break;  // already checked this path
-        seenContainers.add(el);
-        const sendBtn = Array.from(el.querySelectorAll('button, [role="button"]'))
-          .find(b => rfIsSend(b));
-        if (sendBtn) {
-          rfInject(sendBtn);
-          break;  // done for this compose input
-        }
-        el = el.parentElement;
-      }
-    });
-
-    // ── Also target dialogs / overlays directly ───────────────────────────
-    // New message modal and overlay chats use [role="dialog"] or similar
-    [
-      '[role="dialog"]',
-      '.msg-overlay-bubble',
-      '[class*="msg-overlay"]',
-      '[class*="msg-form"]',
-      '.msg-convo-wrapper',
-      '[class*="compose"]',
-    ].forEach(sel => {
-      try {
-        document.querySelectorAll(sel).forEach(el => rfScanContainer(el));
-      } catch (_) {}
+    // Single pass: find every Send button on the page, inject RF if in compose context
+    document.querySelectorAll('button, [role="button"]').forEach(btn => {
+      if (!rfIsSend(btn)) return;
+      if (!rfHasComposeNearby(btn)) return;
+      rfInject(btn);
     });
   }
 
   function rfBurst() {
-    // Fires at increasing intervals after a user action — covers slow React renders
-    [150, 500, 1000, 1800, 3000, 5000].forEach(ms => setTimeout(rfScan, ms));
+    [150, 400, 800, 1500, 2500, 4000].forEach(ms => setTimeout(rfScan, ms));
   }
 
-  // ── Triggers (no page refresh needed after install) ───────────────────
-  // 1. Continuous poll — backbone
-  setInterval(rfScan, 400);
+  // ── Triggers ─────────────────────────────────────────────────────────────
+  setInterval(rfScan, 500);
 
-  // 2. DOM changes — React re-renders new compose components
-  try {
-    new MutationObserver(rfScan)
-      .observe(document.body, { childList: true, subtree: true });
-  } catch (_) {}
+  try { new MutationObserver(rfScan).observe(document.body, { childList: true, subtree: true }); } catch (_) {}
 
-  // 3. Every click may open a new chat/modal
   document.addEventListener('click', rfBurst, true);
 
-  // 4. Compose input focus
   document.addEventListener('focusin', e => {
     try {
       if (e.target && (e.target.isContentEditable ||
@@ -540,20 +493,13 @@
     } catch (_) {}
   }, true);
 
-  // 5. SPA navigation (LinkedIn uses pushState)
   window.addEventListener('popstate',   rfBurst);
   window.addEventListener('hashchange', rfBurst);
-  try {
-    const _op = history.pushState.bind(history);
-    history.pushState = function (...a) { _op(...a); rfBurst(); };
-  } catch (_) {}
-  try {
-    const _or = history.replaceState.bind(history);
-    history.replaceState = function (...a) { _or(...a); rfBurst(); };
-  } catch (_) {}
+  try { const _p = history.pushState.bind(history);    history.pushState    = function(...a){_p(...a);rfBurst();}; } catch(_){}
+  try { const _r = history.replaceState.bind(history); history.replaceState = function(...a){_r(...a);rfBurst();}; } catch(_){}
 
-  console.log('[RF] v12 ready');
-  rfBurst();  // Initial scan from 150ms to 5s
+  console.log('[RF] v13 ready');
+  rfBurst();
 
 })();
 
