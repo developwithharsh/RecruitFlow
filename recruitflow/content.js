@@ -416,72 +416,87 @@
   //  RF BUTTON — exactly one, immediately left of every LinkedIn Send button
   // ════════════════════════════════════════════════════════════════════════
 
-  // Strict Send-button detection — avoids matching "Send InMail", "Send note" etc.
+  // Strict: only match the actual messaging Send button
   function rfIsSend(b) {
     if (!b) return false;
     if (b.classList.contains('rf-toolbar-btn')) return false;
     if (b.getAttribute('data-rf-done')) return false;
     const text = (b.textContent || '').replace(/\s+/g,' ').trim().toLowerCase();
     const aria = (b.getAttribute('aria-label') || '').toLowerCase().trim();
-    const cls  = (typeof b.className === 'string' ? b.className : '').toLowerCase();
-    // Only match the exact messaging Send button
+    const cls  = (typeof b.className === 'string' ? b.className : (b.getAttribute('class') || '')).toLowerCase();
     return text === 'send' ||
            aria === 'send' ||
            aria === 'send message' ||
            cls.includes('msg-form__send');
   }
 
-  // Walk UP from btn to find a compose input within 20 ancestor levels
-  function rfHasComposeNearby(btn) {
-    const COMPOSE = '[contenteditable], [role="textbox"], .msg-form__contenteditable';
+  // Walk UP from btn: look for compose input OR known messaging container class.
+  // Compose and Send are SIBLINGS in LinkedIn's DOM — so we must reach their
+  // common ancestor before querySelector finds the compose input.
+  function rfInMessagingCtx(btn) {
+    const COMPOSE = '[contenteditable], [role="textbox"], .msg-form__contenteditable, textarea';
     let el = btn.parentElement;
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 30; i++) {
       if (!el || el === document.body) break;
+      // Found a compose input as a descendant of this ancestor
       if (el.querySelector(COMPOSE)) return true;
+      // OR we're inside a known LinkedIn messaging wrapper
+      const c = (typeof el.className === 'string' ? el.className : (el.getAttribute('class') || '')).toLowerCase();
+      if (c.includes('msg-form') || c.includes('msg-overlay') || c.includes('msg-convo') ||
+          c.includes('msg-thread') || c.includes('compose') || c.includes('messaging-compose')) return true;
+      // OR inside a dialog (new message modal)
+      if (el.getAttribute('role') === 'dialog') return true;
       el = el.parentElement;
     }
     return false;
   }
 
-  // Inject RF immediately before sendBtn (once only per button element)
+  // Inject RF immediately before sendBtn — once per button element
   function rfInject(sendBtn) {
     if (!sendBtn || !sendBtn.parentNode) return;
     if (sendBtn.getAttribute('data-rf-done')) return;
     const prev = sendBtn.previousElementSibling;
     if (prev && prev.classList.contains('rf-toolbar-btn')) {
-      // Already has RF — just mark the send button so cleanup keeps it
       sendBtn.setAttribute('data-rf-done', '1');
       return;
     }
     sendBtn.setAttribute('data-rf-done', '1');
-    const rfBtn = createRFBtn();
-    sendBtn.parentNode.insertBefore(rfBtn, sendBtn);
+    sendBtn.parentNode.insertBefore(createRFBtn(), sendBtn);
   }
 
   function rfScan() {
-    // Cleanup: remove RF buttons whose next sibling is no longer a marked Send
+    // Cleanup: remove RF whose next sibling is no longer a marked Send button
     document.querySelectorAll('.rf-toolbar-btn').forEach(rf => {
       if (!rf.isConnected || !rf.parentNode) { rf.remove(); return; }
       const next = rf.nextElementSibling;
       if (!next || !next.getAttribute('data-rf-done')) rf.remove();
     });
 
-    // Single pass: find every Send button on the page, inject RF if in compose context
+    // Single pass over all buttons.
+    // seenParents ensures at most ONE RF per toolbar row (prevents [RF][Send][RF]).
+    const seenParents = new Set();
     document.querySelectorAll('button, [role="button"]').forEach(btn => {
       if (!rfIsSend(btn)) return;
-      if (!rfHasComposeNearby(btn)) return;
+      if (!rfInMessagingCtx(btn)) return;
+      const parent = btn.parentNode;
+      if (parent && seenParents.has(parent)) return;   // already handled this row
+      if (parent) seenParents.add(parent);
       rfInject(btn);
     });
   }
 
+  // Debounced MutationObserver — avoids calling rfScan on every tiny DOM change
+  let _rfTimer = null;
+  function rfSchedule() { clearTimeout(_rfTimer); _rfTimer = setTimeout(rfScan, 80); }
+
   function rfBurst() {
-    [150, 400, 800, 1500, 2500, 4000].forEach(ms => setTimeout(rfScan, ms));
+    [100, 350, 750, 1400, 2500, 4000].forEach(ms => setTimeout(rfScan, ms));
   }
 
   // ── Triggers ─────────────────────────────────────────────────────────────
-  setInterval(rfScan, 500);
+  setInterval(rfScan, 600);
 
-  try { new MutationObserver(rfScan).observe(document.body, { childList: true, subtree: true }); } catch (_) {}
+  try { new MutationObserver(rfSchedule).observe(document.body, { childList: true, subtree: true }); } catch (_) {}
 
   document.addEventListener('click', rfBurst, true);
 
@@ -498,7 +513,7 @@
   try { const _p = history.pushState.bind(history);    history.pushState    = function(...a){_p(...a);rfBurst();}; } catch(_){}
   try { const _r = history.replaceState.bind(history); history.replaceState = function(...a){_r(...a);rfBurst();}; } catch(_){}
 
-  console.log('[RF] v13 ready');
+  console.log('[RF] v14 ready');
   rfBurst();
 
 })();
