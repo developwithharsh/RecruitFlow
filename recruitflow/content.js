@@ -424,16 +424,19 @@
     return s.display !== 'none' && s.visibility !== 'hidden' && s.opacity !== '0';
   }
 
-  // Walk up from a contenteditable until we find a container that holds BOTH
-  // the contenteditable AND at least one button/[role=button] — that's the
-  // real compose form (not just the text area's wrapper).
+  // Walk up from a contenteditable until we find a container that has BOTH
+  // the contenteditable AND a positively-identified send button.
+  // This skips small wrappers (e.g. text area with just a chevron button)
+  // and lands on the real form/dialog that spans compose + footer.
   function _findComposeContainer(ce, maxSteps) {
     let cur = ce.parentElement;
     for (let i = 0; i < maxSteps; i++) {
       if (!cur || cur === document.body) return null;
-      const btns = cur.querySelectorAll('button, [role="button"]');
-      // Found a container with both the compose box and at least one button
-      if (btns.length >= 1 && cur.querySelector('[contenteditable]')) return cur;
+      // Require: has contenteditable + at least one positively-named send button
+      if (cur.querySelector('[contenteditable]')) {
+        const btns = Array.from(cur.querySelectorAll('button, [role="button"]'));
+        if (btns.some(b => _isSendBtn(b))) return cur;
+      }
       cur = cur.parentElement;
     }
     return null;
@@ -451,38 +454,12 @@
            text.endsWith(' send') || text.includes('send message');
   }
 
-  // Given a compose container, find the best "send" button inside it.
-  // Priority: named send button > last visible button in bottom-right
+  // Find the send button inside a compose container — named match only,
+  // no structural guessing (prevents injecting next to wrong buttons like chevrons).
   function _findSendBtn(container) {
-    const candidates = Array.from(
-      container.querySelectorAll('button, [role="button"]')
-    ).filter(b => !b.classList.contains('rf-toolbar-btn') && _isVisible(b));
-
-    // Named match first
-    const named = candidates.find(_isSendBtn);
-    if (named) return named;
-
-    // Structural fallback: rightmost button in the bottom row of this container
-    // Sort by vertical position (bottom of container), then horizontal (rightmost)
-    const containerRect = container.getBoundingClientRect();
-    const bottomRow = candidates.filter(b => {
-      const r = b.getBoundingClientRect();
-      return r.top >= containerRect.bottom - 80; // within 80px of container bottom
-    });
-    if (bottomRow.length) {
-      // Return the rightmost one
-      return bottomRow.reduce((a, b) =>
-        b.getBoundingClientRect().right > a.getBoundingClientRect().right ? b : a
-      );
-    }
-
-    // Last resort: rightmost of all visible buttons in container
-    if (candidates.length) {
-      return candidates.reduce((a, b) =>
-        b.getBoundingClientRect().right > a.getBoundingClientRect().right ? b : a
-      );
-    }
-    return null;
+    return Array.from(container.querySelectorAll('button, [role="button"]'))
+      .find(b => !b.classList.contains('rf-toolbar-btn') && _isVisible(b) && _isSendBtn(b))
+      || null;
   }
 
   function _injectNextTo(sendBtn) {
@@ -496,18 +473,18 @@
       '| aria:', sendBtn.getAttribute('aria-label'));
   }
 
-  // Collect all unique compose containers on the page right now
+  // Collect all unique compose containers on the page right now.
+  // A valid container must have BOTH [contenteditable] AND a named send button.
   function _getComposeContainers() {
     const containers = new Set();
 
-    // Every contenteditable → walk up to find the compose container
+    // Walk up from every contenteditable to find its real form container
     document.querySelectorAll('[contenteditable]').forEach(ce => {
-      // Try increasingly large walk-up windows
-      const c = _findComposeContainer(ce, 30);
+      const c = _findComposeContainer(ce, 35);
       if (c) containers.add(c);
     });
 
-    // Also try known LinkedIn wrapper selectors directly
+    // Also scan known LinkedIn selectors — accept only those with a send button
     [
       '.msg-form',
       '[class*="msg-form"]',
@@ -520,7 +497,10 @@
     ].forEach(sel => {
       try {
         document.querySelectorAll(sel).forEach(el => {
-          if (el.querySelector('[contenteditable]')) containers.add(el);
+          if (!el.querySelector('[contenteditable]')) return;
+          const hasSend = Array.from(el.querySelectorAll('button,[role="button"]'))
+            .some(b => _isSendBtn(b));
+          if (hasSend) containers.add(el);
         });
       } catch (_) {}
     });
@@ -529,12 +509,13 @@
   }
 
   function _tryInject() {
-    // Remove stale RF buttons whose parent no longer has any other buttons
+    // Remove stale RF buttons if their sibling send button is gone
     document.querySelectorAll('.rf-toolbar-btn').forEach(rfBtn => {
       if (!rfBtn.isConnected || !rfBtn.parentNode) { rfBtn.remove(); return; }
-      const siblings = Array.from(rfBtn.parentNode.querySelectorAll('button, [role="button"]'))
-        .filter(b => b !== rfBtn);
-      if (!siblings.length) rfBtn.remove();
+      const hasSendSibling = Array.from(
+        rfBtn.parentNode.querySelectorAll('button, [role="button"]')
+      ).some(b => b !== rfBtn && _isSendBtn(b));
+      if (!hasSendSibling) rfBtn.remove();
     });
 
     // For every compose container, find + inject next to its send button
