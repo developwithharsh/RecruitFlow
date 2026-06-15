@@ -416,74 +416,158 @@
 
   console.log('[RecruitFlow] content.js loaded on', window.location.href);
 
+  // Is this element a LinkedIn send button? Ultra-broad match.
   function _isSendBtn(b) {
-    if (!b || b.classList.contains('rf-toolbar-btn')) return false;
+    if (!b) return false;
+    if (b.classList.contains('rf-toolbar-btn')) return false;
     const aria = (b.getAttribute('aria-label') || '').toLowerCase();
-    const text = (b.innerText || b.textContent || '').toLowerCase().trim();
-    const cls  = b.className || '';
-    return cls.includes('msg-form__send-button') ||
-           b.getAttribute('data-control-name') === 'send' ||
-           aria === 'send' || aria === 'send message' || aria.startsWith('send ') ||
-           text === 'send' || text === 'send message';
+    const text = (b.innerText || b.textContent || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    const cls  = (typeof b.className === 'string' ? b.className : '').toLowerCase();
+    const ctrl = (b.getAttribute('data-control-name') || '').toLowerCase();
+    // Positive match: any "send" signal
+    const hasSend = cls.includes('send') || ctrl.includes('send') ||
+                    aria.includes('send') || text === 'send' || text === 'send message' ||
+                    text.startsWith('send ');
+    return hasSend;
+  }
+
+  // Is this element visible?
+  function _isVisible(el) {
+    if (!el) return false;
+    const s = getComputedStyle(el);
+    if (s.display === 'none' || s.visibility === 'hidden' || s.opacity === '0') return false;
+    return true;
+  }
+
+  // Check if a candidate send button is inside a messaging compose form
+  // (i.e. same subtree as a contenteditable)
+  function _isInComposeContext(btn) {
+    let el = btn.parentElement;
+    for (let i = 0; i < 25; i++) {
+      if (!el || el === document.body) return false;
+      if (el.querySelector('[contenteditable]')) return true;
+      el = el.parentElement;
+    }
+    return false;
   }
 
   function _injectNextTo(sendBtn) {
     if (!sendBtn || !sendBtn.parentNode) return;
-    if (sendBtn.parentNode.querySelector('.rf-toolbar-btn')) return;
+    // Don't double-inject
+    const parent = sendBtn.parentNode;
+    if (parent.querySelector('.rf-toolbar-btn')) return;
     const rfBtn = createRFBtn();
-    sendBtn.parentNode.insertBefore(rfBtn, sendBtn);
-    console.log('[RecruitFlow] RF button injected next to', sendBtn.className || sendBtn.tagName);
+    parent.insertBefore(rfBtn, sendBtn);
+    console.log('[RecruitFlow] ✅ Injected RF next to:', sendBtn.tagName, '|', sendBtn.className, '| aria:', sendBtn.getAttribute('aria-label'));
   }
 
+  // Debug: log all candidate buttons found near compose boxes
+  function _debugLogBtns() {
+    const allBtns = Array.from(document.querySelectorAll('button, [role="button"]'))
+      .filter(b => !b.classList.contains('rf-toolbar-btn') && _isInComposeContext(b));
+    if (allBtns.length) {
+      console.log('[RecruitFlow] Buttons in compose contexts:',
+        allBtns.map(b => ({
+          tag: b.tagName, cls: b.className,
+          aria: b.getAttribute('aria-label'),
+          text: (b.innerText||'').trim().slice(0,30),
+          ctrl: b.getAttribute('data-control-name')
+        }))
+      );
+    }
+  }
+
+  let _debugDone = false;
+
   function _tryInject() {
-    // Remove stale RF buttons
+    // Debug log once after page is settled
+    if (!_debugDone) {
+      _debugDone = true;
+      setTimeout(_debugLogBtns, 2000);
+    }
+
+    // Cleanup stale RF buttons
     document.querySelectorAll('.rf-toolbar-btn').forEach(rfBtn => {
       if (!rfBtn.isConnected || !rfBtn.parentNode) { rfBtn.remove(); return; }
-      const hasSend = Array.from(rfBtn.parentNode.querySelectorAll('button, [role="button"]'))
+      // Keep if sibling send button still present
+      const parent = rfBtn.parentNode;
+      const sibSend = Array.from(parent.querySelectorAll('button, [role="button"]'))
         .some(b => b !== rfBtn && _isSendBtn(b));
-      if (!hasSend) rfBtn.remove();
+      if (!sibSend) rfBtn.remove();
     });
 
-    // Strategy 1: direct class — fastest, works when LinkedIn uses known class
-    document.querySelectorAll('.msg-form__send-button, [data-control-name="send"]').forEach(sendBtn => {
-      if (_isSendBtn(sendBtn)) _injectNextTo(sendBtn);
+    // ── Strategy A: known LinkedIn class / attribute ──────────────────────
+    document.querySelectorAll(
+      '.msg-form__send-button, [data-control-name="send"], [data-control-name="send_message"]'
+    ).forEach(btn => {
+      if (_isSendBtn(btn)) _injectNextTo(btn);
     });
 
-    // Strategy 2: scan common LinkedIn messaging containers for any send button
-    const CONTAINER_SELECTORS = [
-      '.msg-form',
-      '.msg-overlay-bubble-header__details',
-      '[class*="msg-form"]',
-      '[class*="msg-compose"]',
-      '[class*="compose-form"]',
-      '[role="dialog"]',
-      '[class*="conversation-form"]',
-      '[class*="messaging-compose"]'
-    ];
-    CONTAINER_SELECTORS.forEach(sel => {
-      document.querySelectorAll(sel).forEach(container => {
-        if (!container.querySelector('[contenteditable]')) return;
-        const sendBtn = Array.from(container.querySelectorAll('button, [role="button"]'))
-          .find(b => _isSendBtn(b));
-        if (sendBtn) _injectNextTo(sendBtn);
-      });
-    });
-
-    // Strategy 3: walk up from every contenteditable, search all descendants at each level
+    // ── Strategy B: walk UP from every contenteditable, search DOWN at each level ─
     document.querySelectorAll('[contenteditable]').forEach(compose => {
       let el = compose.parentElement;
-      for (let i = 0; i < 20; i++) {
+      for (let i = 0; i < 25; i++) {
         if (!el || el === document.body) break;
+        // Look for any button/role=button that is a send button
         const sendBtn = Array.from(el.querySelectorAll('button, [role="button"]'))
-          .find(b => _isSendBtn(b));
+          .find(b => !b.classList.contains('rf-toolbar-btn') && _isSendBtn(b) && _isVisible(b));
         if (sendBtn) { _injectNextTo(sendBtn); break; }
         el = el.parentElement;
       }
     });
+
+    // ── Strategy C: scan all known messaging container class fragments ────
+    [
+      '[class*="msg-form"]',
+      '[class*="msg-compose"]',
+      '[class*="compose-form"]',
+      '[class*="messaging-compose"]',
+      '[class*="conversation-form"]',
+      '[class*="msg-overlay"]',
+      '[class*="new-message"]',
+      '[role="dialog"]',
+      '[role="main"]'
+    ].forEach(sel => {
+      try {
+        document.querySelectorAll(sel).forEach(container => {
+          if (!container.querySelector('[contenteditable]')) return;
+          const sendBtn = Array.from(container.querySelectorAll('button, [role="button"]'))
+            .find(b => !b.classList.contains('rf-toolbar-btn') && _isSendBtn(b) && _isVisible(b));
+          if (sendBtn) _injectNextTo(sendBtn);
+        });
+      } catch (_) {}
+    });
+
+    // ── Strategy D: position-based last resort ────────────────────────────
+    // Find all visible contenteditable boxes; for each, find the nearest button
+    // in the bottom-right quadrant of the same bounding area.
+    document.querySelectorAll('[contenteditable]').forEach(compose => {
+      const cr = compose.getBoundingClientRect();
+      if (cr.width < 100 || cr.height < 10) return; // skip tiny/hidden
+      // Search buttons within 300px below and right of compose bottom-right corner
+      Array.from(document.querySelectorAll('button, [role="button"]')).forEach(btn => {
+        if (btn.classList.contains('rf-toolbar-btn')) return;
+        if (btn.parentNode?.querySelector('.rf-toolbar-btn')) return;
+        const br = btn.getBoundingClientRect();
+        if (br.width < 5 || br.height < 5) return; // not rendered
+        // Button should be below the compose box and horizontally overlapping
+        const belowCompose = br.top >= cr.bottom - 20 && br.top <= cr.bottom + 150;
+        const rightAligned = br.right > window.innerWidth * 0.4;
+        if (belowCompose && rightAligned && !_isSendBtn(btn)) {
+          // Check if this button is in same form context
+          if (_isInComposeContext(btn)) {
+            console.log('[RecruitFlow] Position-based candidate:', btn.tagName, btn.className, '| aria:', btn.getAttribute('aria-label'), '| text:', (btn.innerText||'').trim().slice(0,20));
+          }
+        }
+        if (belowCompose && rightAligned && _isSendBtn(btn) && _isInComposeContext(btn)) {
+          _injectNextTo(btn);
+        }
+      });
+    });
   }
 
-  setInterval(_tryInject, 500);
+  setInterval(_tryInject, 400);
   _tryInject();
-  new MutationObserver(_tryInject).observe(document.body, { childList: true, subtree: true });
+  new MutationObserver(() => _tryInject()).observe(document.body, { childList: true, subtree: true });
 
 })();
