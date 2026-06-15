@@ -135,18 +135,25 @@
   // ── RF Quick-Send floating button (always visible in LinkedIn messaging) ───
 
   function getActiveComposer() {
+    // Known LinkedIn class
     const known = document.querySelector('.msg-form__contenteditable');
     if (known) return known;
 
+    // New-message compose dialog
+    const inDialog = document.querySelector('[role="dialog"] [contenteditable="true"]');
+    if (inDialog) return inDialog;
+
+    // Any contenteditable with a messaging-related placeholder
     const byPH = Array.from(document.querySelectorAll('[contenteditable="true"]')).find(el => {
       const ph = (el.getAttribute('data-placeholder') || el.getAttribute('aria-placeholder') || el.getAttribute('placeholder') || '').toLowerCase();
       return ph.includes('write a message') || ph.includes('write a msg') || ph.includes('message');
     });
     if (byPH) return byPH;
 
+    // Fallback: any large visible contenteditable in the bottom half
     const byPos = Array.from(document.querySelectorAll('[contenteditable="true"]')).find(el => {
       const r = el.getBoundingClientRect();
-      return r.width > 100 && r.height > 20 && r.top > window.innerHeight * 0.45;
+      return r.width > 100 && r.height > 20 && r.top > window.innerHeight * 0.35;
     });
     return byPos || null;
   }
@@ -419,32 +426,30 @@
 
   function _doInjectRFButtons() {
     document.querySelectorAll('.rf-toolbar-btn').forEach(rfBtn => {
-      if (rfBtn.closest('#recruitflow-sidebar-container')) return;
       const parent = rfBtn.parentNode;
       if (!parent) { rfBtn.remove(); return; }
       const hasSend = Array.from(parent.querySelectorAll('button')).some(b => {
         if (b === rfBtn) return false;
         const a = (b.getAttribute('aria-label') || '').toLowerCase();
-        const t = (b.innerText || '').toLowerCase().trim();
+        const t = (b.innerText || b.textContent || '').toLowerCase().trim();
         return a.includes('send') || t === 'send' || t === 'send message' ||
                b.classList.contains('msg-form__send-button');
       });
       if (!hasSend) rfBtn.remove();
     });
 
+    // ── Generic: find any LinkedIn Send button and inject RF next to it ──────
     document.querySelectorAll('button').forEach(sendBtn => {
-      if (sendBtn.closest('#recruitflow-sidebar-container')) return;
       if (sendBtn.classList.contains('rf-toolbar-btn')) return;
 
       const ariaLower = (sendBtn.getAttribute('aria-label') || '').toLowerCase().trim();
-      const textLower = (sendBtn.innerText || '').toLowerCase().trim();
+      const textContent = (sendBtn.innerText || sendBtn.textContent || '').toLowerCase().trim();
 
       const isSend = ariaLower === 'send' || ariaLower === 'send message' ||
-                     ariaLower.includes('send message') || ariaLower.startsWith('send ') ||
-                     textLower === 'send' || textLower === 'send message' ||
+                     ariaLower.startsWith('send ') || ariaLower.includes('send message') ||
+                     textContent === 'send' || textContent === 'send message' ||
                      sendBtn.classList.contains('msg-form__send-button') ||
-                     sendBtn.getAttribute('data-control-name') === 'send' ||
-                     sendBtn.getAttribute('type') === 'submit' && !!sendBtn.closest('[role="dialog"],.msg-compose-bubble,.msg-overlay-conversation-bubble');
+                     sendBtn.getAttribute('data-control-name') === 'send';
       if (!isSend) return;
 
       const rect = sendBtn.getBoundingClientRect();
@@ -456,6 +461,34 @@
                      || sendBtn.closest('form')
                      || sendBtn.parentNode;
       if (container && container.querySelector('.rf-toolbar-btn')) return;
+
+      const rfBtn = createRFBtn();
+      sendBtn.parentNode.insertBefore(rfBtn, sendBtn);
+    });
+
+    // ── Specific: LinkedIn "New message" compose dialog ───────────────────────
+    // The dialog send button may use an SVG icon with no text — detect via position
+    document.querySelectorAll('[role="dialog"]').forEach(dialog => {
+      if (dialog.querySelector('.rf-toolbar-btn')) return; // already injected
+
+      // Find any button in the bottom toolbar of the dialog that looks like Send
+      const allBtns = Array.from(dialog.querySelectorAll('button'));
+      const sendBtn = allBtns.find(b => {
+        if (b.classList.contains('rf-toolbar-btn')) return false;
+        const a = (b.getAttribute('aria-label') || '').toLowerCase();
+        const t = (b.innerText || b.textContent || '').toLowerCase().trim();
+        // Match aria-label containing "send" OR last visible button in toolbar
+        return a.includes('send') || t === 'send' || t === 'send message' ||
+               b.classList.contains('msg-form__send-button') ||
+               b.getAttribute('data-control-name') === 'send';
+      });
+
+      if (!sendBtn) return;
+      const rect = sendBtn.getBoundingClientRect();
+      if (rect.width === 0 && rect.height === 0) return;
+
+      // Double-check no RF button already in this Send button's parent
+      if (sendBtn.parentNode?.querySelector('.rf-toolbar-btn')) return;
 
       const rfBtn = createRFBtn();
       sendBtn.parentNode.insertBefore(rfBtn, sendBtn);
