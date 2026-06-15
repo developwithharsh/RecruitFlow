@@ -419,82 +419,38 @@
     _rfInjectTimer = setTimeout(() => {
       _doInjectRFButtons();
       clearTimeout(_rfRetryTimer);
-      _rfRetryTimer = setTimeout(_doInjectRFButtons, 1200);
-    }, 200);
-  }
-
-  function _findSendBtn(root) {
-    return Array.from(root.querySelectorAll('button')).find(b => {
-      if (b.classList.contains('rf-toolbar-btn')) return false;
-      const aria = (b.getAttribute('aria-label') || '').toLowerCase();
-      const text = (b.innerText || b.textContent || '').toLowerCase().trim();
-      return b.classList.contains('msg-form__send-button') ||
-             b.getAttribute('data-control-name') === 'send' ||
-             aria === 'send' || aria === 'send message' ||
-             aria.startsWith('send ') ||
-             text === 'send' || text === 'send message';
-    });
-  }
-
-  // Walk up from composeEl until we reach a container that also holds a Send button
-  function _getFormRoot(composeEl) {
-    let el = composeEl.parentElement;
-    while (el && el !== document.body) {
-      if (_findSendBtn(el)) return el;
-      el = el.parentElement;
-    }
-    return null;
+      _rfRetryTimer = setTimeout(_doInjectRFButtons, 1000);
+    }, 150);
   }
 
   function _doInjectRFButtons() {
-    // ── 1. Remove stale RF buttons ────────────────────────────────────────────
+    // ── Remove stale RF buttons ───────────────────────────────────────────────
     document.querySelectorAll('.rf-toolbar-btn').forEach(rfBtn => {
-      if (!rfBtn.isConnected) return;
-      const form = rfBtn.closest('[class*="msg-form"], form') || rfBtn.parentNode;
-      if (form && !_findSendBtn(form)) rfBtn.remove();
+      if (!rfBtn.isConnected || !rfBtn.parentNode) { rfBtn.remove(); return; }
+      // Remove if the send button sibling is gone
+      const hasSend = !!rfBtn.parentNode.querySelector('button.msg-form__send-button, [data-control-name="send"]') ||
+        Array.from(rfBtn.parentNode.querySelectorAll('button')).some(b => {
+          if (b === rfBtn) return false;
+          const a = (b.getAttribute('aria-label') || '').toLowerCase();
+          const t = (b.innerText || b.textContent || '').toLowerCase().trim();
+          return a === 'send' || a === 'send message' || t === 'send' || t === 'send message';
+        });
+      if (!hasSend) rfBtn.remove();
     });
 
-    // ── 2. Find every compose box, walk UP to the container holding Send btn ──
-    const composeSelectors = [
-      '.msg-form__contenteditable',
-      '[contenteditable="true"][data-placeholder*="message" i]',
-      '[contenteditable="true"][aria-placeholder*="message" i]',
-      '[contenteditable="true"][aria-label*="message" i]',
-    ];
-
-    const seenForms = new Set();
-
-    composeSelectors.forEach(sel => {
-      document.querySelectorAll(sel).forEach(composeEl => {
-        const form = _getFormRoot(composeEl); // walks UP — guaranteed to contain Send
-        if (!form || seenForms.has(form)) return;
-        seenForms.add(form);
-
-        if (form.querySelector('.rf-toolbar-btn')) return; // already injected
-
-        const sendBtn = _findSendBtn(form);
-        if (!sendBtn) return;
-
-        const cs = window.getComputedStyle(form);
-        if (cs.display === 'none' || cs.visibility === 'hidden') return;
-
-        const rfBtn = createRFBtn();
-        sendBtn.parentNode.insertBefore(rfBtn, sendBtn);
-      });
+    // ── PRIMARY: target LinkedIn's own send button class directly ─────────────
+    // msg-form__send-button appears in ALL LinkedIn chat contexts:
+    // existing conversations, new message modal, chat overlays, InMail
+    document.querySelectorAll('button.msg-form__send-button').forEach(sendBtn => {
+      if (sendBtn.parentNode?.querySelector('.rf-toolbar-btn')) return; // already done
+      const rfBtn = createRFBtn();
+      sendBtn.parentNode.insertBefore(rfBtn, sendBtn);
     });
 
-    // ── 3. Fallback: direct Send button scan for anything missed ─────────────
-    document.querySelectorAll('button').forEach(sendBtn => {
+    // ── FALLBACK: aria-label / text / data-control-name ──────────────────────
+    document.querySelectorAll('button[data-control-name="send"], button[aria-label="Send"], button[aria-label="send message"]').forEach(sendBtn => {
       if (sendBtn.classList.contains('rf-toolbar-btn')) return;
-      const aria = (sendBtn.getAttribute('aria-label') || '').toLowerCase().trim();
-      const text = (sendBtn.innerText || sendBtn.textContent || '').toLowerCase().trim();
-      const isSend = sendBtn.classList.contains('msg-form__send-button') ||
-                     sendBtn.getAttribute('data-control-name') === 'send' ||
-                     aria === 'send' || aria === 'send message' ||
-                     text === 'send' || text === 'send message';
-      if (!isSend) return;
-      const cs = window.getComputedStyle(sendBtn);
-      if (cs.display === 'none' || cs.visibility === 'hidden') return;
+      if (sendBtn.classList.contains('msg-form__send-button')) return; // already handled above
       if (sendBtn.parentNode?.querySelector('.rf-toolbar-btn')) return;
       const rfBtn = createRFBtn();
       sendBtn.parentNode.insertBefore(rfBtn, sendBtn);
