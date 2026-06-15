@@ -406,9 +406,15 @@
   }
 
   let _rfInjectTimer = null;
+  let _rfRetryTimer  = null;
   function injectRFButtons() {
     clearTimeout(_rfInjectTimer);
-    _rfInjectTimer = setTimeout(_doInjectRFButtons, 300);
+    _rfInjectTimer = setTimeout(() => {
+      _doInjectRFButtons();
+      // Retry after 1.5s — catches new-message compose modals that render late
+      clearTimeout(_rfRetryTimer);
+      _rfRetryTimer = setTimeout(_doInjectRFButtons, 1500);
+    }, 300);
   }
 
   function _doInjectRFButtons() {
@@ -434,10 +440,11 @@
       const textLower = (sendBtn.innerText || '').toLowerCase().trim();
 
       const isSend = ariaLower === 'send' || ariaLower === 'send message' ||
-                     ariaLower.includes('send message') ||
+                     ariaLower.includes('send message') || ariaLower.startsWith('send ') ||
                      textLower === 'send' || textLower === 'send message' ||
                      sendBtn.classList.contains('msg-form__send-button') ||
-                     sendBtn.getAttribute('data-control-name') === 'send';
+                     sendBtn.getAttribute('data-control-name') === 'send' ||
+                     sendBtn.getAttribute('type') === 'submit' && !!sendBtn.closest('[role="dialog"],.msg-compose-bubble,.msg-overlay-conversation-bubble');
       if (!isSend) return;
 
       const rect = sendBtn.getBoundingClientRect();
