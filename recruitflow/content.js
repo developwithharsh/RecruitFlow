@@ -413,9 +413,8 @@
   }
 
   // ── RF button injection ───────────────────────────────────────────────────
-  // Scans ALL buttons, fires on every click/focus/nav/DOM change. No refresh needed.
 
-  console.log('[RecruitFlow] content.js v6 loaded on', window.location.href);
+  console.log('[RecruitFlow] content.js v7 loaded on', window.location.href);
 
   function _isSendBtn(b) {
     try {
@@ -423,7 +422,6 @@
       const aria = (b.getAttribute('aria-label') || '').toLowerCase();
       const cls  = (typeof b.className === 'string' ? b.className : '').toLowerCase();
       const ctrl = (b.getAttribute('data-control-name') || '').toLowerCase();
-      // Use textContent (not innerText) so disabled/hidden buttons still match
       const text = (b.textContent || '').toLowerCase().replace(/\s+/g, ' ').trim();
       return cls.includes('send') || ctrl.includes('send') || aria.includes('send') ||
              text === 'send' || text.startsWith('send') || text.endsWith('send') ||
@@ -437,99 +435,147 @@
       if (sendBtn.parentNode.querySelector('.rf-toolbar-btn')) return;
       const rfBtn = createRFBtn();
       sendBtn.parentNode.insertBefore(rfBtn, sendBtn);
-      console.log('[RecruitFlow] ✅ Injected | tag:', sendBtn.tagName,
-        '| cls:', (sendBtn.className || '').slice(0, 50),
-        '| aria:', sendBtn.getAttribute('aria-label'),
+      console.log('[RecruitFlow] ✅ Injected next to:', sendBtn.tagName,
+        (sendBtn.className || '').slice(0, 60),
         '| text:', (sendBtn.textContent || '').trim().slice(0, 20));
     } catch (e) { console.warn('[RecruitFlow] inject err:', e.message); }
   }
 
+  // PRIMARY STRATEGY: start from [contenteditable], walk UP one level at a time,
+  // at each level scan SIBLING elements that follow it for buttons.
+  // This is correct because LinkedIn's compose box and footer are siblings.
+  function _injectFromCompose(ce) {
+    try {
+      let cur = ce.parentElement;
+      for (let level = 0; level < 20; level++) {
+        if (!cur || !cur.parentElement || cur === document.body) break;
+        const parent = cur.parentElement;
+        const kids   = Array.from(parent.children);
+        const idx    = kids.indexOf(cur);
+
+        // Look at all siblings that come AFTER the current element
+        for (let j = idx + 1; j < kids.length; j++) {
+          const sib = kids[j];
+          // Skip if already has RF
+          if (sib.querySelector('.rf-toolbar-btn')) return;
+          const btns = Array.from(sib.querySelectorAll('button, [role="button"]'))
+                         .filter(b => !b.classList.contains('rf-toolbar-btn'));
+          if (btns.length === 0) continue;
+          // Found a sibling with buttons — it's the footer toolbar
+          // Prefer a named send button, otherwise use the last button (rightmost)
+          const sendBtn = btns.find(_isSendBtn) || btns[btns.length - 1];
+          _injectNextTo(sendBtn);
+          return;
+        }
+
+        // Also check siblings BEFORE (some UIs put toolbar above)
+        for (let j = idx - 1; j >= 0; j--) {
+          const sib = kids[j];
+          if (sib.querySelector('.rf-toolbar-btn')) return;
+          const btns = Array.from(sib.querySelectorAll('button, [role="button"]'))
+                         .filter(b => !b.classList.contains('rf-toolbar-btn'));
+          if (btns.length === 0) continue;
+          const sendBtn = btns.find(_isSendBtn);
+          if (sendBtn) { _injectNextTo(sendBtn); return; }
+        }
+
+        cur = parent;
+      }
+    } catch (e) { console.warn('[RecruitFlow] compose-scan err:', e.message); }
+  }
+
+  // SECONDARY STRATEGY: walk UP from the Send button and look for [contenteditable]
+  // in the ancestor subtree (works when compose and footer are nested together).
+  function _injectFromSend(btn) {
+    try {
+      let cur = btn.parentElement;
+      for (let i = 0; i < 50; i++) {
+        if (!cur || cur === document.body) break;
+        if (cur.querySelector('[contenteditable]')) {
+          // Found shared ancestor — this Send button is part of a compose form
+          if (!btn.parentNode.querySelector('.rf-toolbar-btn')) _injectNextTo(btn);
+          return;
+        }
+        cur = cur.parentElement;
+      }
+    } catch (_) {}
+  }
+
+  // TERTIARY: position-based — any [contenteditable] rendered above and near this Send btn
+  function _injectByPosition(btn) {
+    try {
+      if (btn.parentNode && btn.parentNode.querySelector('.rf-toolbar-btn')) return;
+      const br = btn.getBoundingClientRect();
+      if (br.width < 1) return;
+      const nearby = Array.from(document.querySelectorAll('[contenteditable]')).some(ce => {
+        try {
+          const cr = ce.getBoundingClientRect();
+          return cr.width > 60 && cr.height > 5 &&
+                 br.top >= cr.top - 50 && br.top <= cr.bottom + 350 &&
+                 Math.abs((br.left + br.right) / 2 - (cr.left + cr.right) / 2) < 800;
+        } catch (_) { return false; }
+      });
+      if (nearby) _injectNextTo(btn);
+    } catch (_) {}
+  }
+
   function _tryInject() {
     try {
-      // Remove stale RF buttons whose Send sibling is gone
+      // Cleanup stale RF buttons
       document.querySelectorAll('.rf-toolbar-btn').forEach(rfBtn => {
         try {
           if (!rfBtn.isConnected || !rfBtn.parentNode) { rfBtn.remove(); return; }
           const hasSend = Array.from(rfBtn.parentNode.querySelectorAll('button,[role="button"]'))
             .some(b => b !== rfBtn && _isSendBtn(b));
-          if (!hasSend) rfBtn.remove();
+          // Keep if next sibling or parent still has send context
+          if (!hasSend && !rfBtn.closest('[contenteditable]')) rfBtn.remove();
         } catch (_) {}
       });
 
-      // Scan EVERY button/role=button on page for Send buttons
+      // PRIMARY: start from every [contenteditable] and find sibling footer
+      document.querySelectorAll('[contenteditable]').forEach(ce => {
+        try {
+          // Skip if already injected in the same compose area
+          let cur = ce.parentElement;
+          for (let i = 0; i < 20; i++) {
+            if (!cur || cur === document.body) break;
+            if (cur.querySelector('.rf-toolbar-btn')) return;
+            cur = cur.parentElement;
+          }
+          _injectFromCompose(ce);
+        } catch (_) {}
+      });
+
+      // SECONDARY: also scan for Send buttons and verify they have a compose context
       document.querySelectorAll('button, [role="button"]').forEach(btn => {
         try {
           if (btn.classList.contains('rf-toolbar-btn')) return;
           if (!_isSendBtn(btn)) return;
           if (btn.parentNode && btn.parentNode.querySelector('.rf-toolbar-btn')) return;
-
-          // Verify it is inside a messaging compose context:
-          // Walk UP from the Send button — if any ancestor's subtree has [contenteditable]
-          // then the Send button is part of a compose form.
-          let inCompose = false;
-          let cur = btn.parentElement;
-          for (let i = 0; i < 50; i++) {
-            if (!cur || cur === document.body) break;
-            if (cur.querySelector('[contenteditable]')) { inCompose = true; break; }
-            cur = cur.parentElement;
+          _injectFromSend(btn);
+          // If still not injected, try position
+          if (btn.parentNode && !btn.parentNode.querySelector('.rf-toolbar-btn')) {
+            _injectByPosition(btn);
           }
-
-          // Position fallback: any [contenteditable] rendered above and near this button
-          if (!inCompose) {
-            const br = btn.getBoundingClientRect();
-            if (br.width > 0) {
-              inCompose = Array.from(document.querySelectorAll('[contenteditable]')).some(ce => {
-                try {
-                  const cr = ce.getBoundingClientRect();
-                  return cr.width > 60 && cr.height > 10 &&
-                         br.top >= cr.top - 30 &&
-                         br.top <= cr.bottom + 300 &&
-                         Math.abs((br.left + br.right) / 2 - (cr.left + cr.right) / 2) < 700;
-                } catch (_) { return false; }
-              });
-            }
-          }
-
-          if (inCompose) _injectNextTo(btn);
         } catch (_) {}
       });
     } catch (e) { console.warn('[RecruitFlow] _tryInject err:', e.message); }
   }
 
-  // Fire _tryInject `n` times every `ms` ms — catches delayed React renders
   function _burst(n, ms) {
     let i = 0;
     const run = () => { _tryInject(); if (++i < n) setTimeout(run, ms); };
     try { run(); } catch (_) {}
   }
 
-  // ── Triggers ─────────────────────────────────────────────────────────────
-
   setInterval(_tryInject, 400);
-
   try { new MutationObserver(() => _tryInject()).observe(document.body, { childList: true, subtree: true }); } catch (_) {}
-
-  // Every click (capture phase) — catches opening any chat or new-message modal
-  document.addEventListener('click', () => _burst(12, 400), true);
-
-  // Compose box focus — user clicked/tabbed into a message input
-  document.addEventListener('focusin', e => {
-    try { if (e.target && e.target.isContentEditable) _burst(8, 300); } catch (_) {}
-  }, true);
-
-  // SPA navigation
+  document.addEventListener('click',   () => _burst(12, 400), true);
+  document.addEventListener('focusin', e => { try { if (e.target && e.target.isContentEditable) _burst(8, 300); } catch (_) {} }, true);
   window.addEventListener('popstate',   () => _burst(12, 500));
   window.addEventListener('hashchange', () => _burst(12, 500));
-  try {
-    const _op = history.pushState.bind(history);
-    history.pushState = function (...a) { _op(...a); _burst(12, 500); };
-  } catch (_) {}
-  try {
-    const _or = history.replaceState.bind(history);
-    history.replaceState = function (...a) { _or(...a); _burst(8, 400); };
-  } catch (_) {}
-
-  // Initial burst on page load
+  try { const _op = history.pushState.bind(history); history.pushState = function(...a) { _op(...a); _burst(12, 500); }; } catch (_) {}
+  try { const _or = history.replaceState.bind(history); history.replaceState = function(...a) { _or(...a); _burst(8, 400); }; } catch (_) {}
   _burst(10, 600);
 
 })();
