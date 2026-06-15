@@ -424,25 +424,7 @@
     return s.display !== 'none' && s.visibility !== 'hidden' && s.opacity !== '0';
   }
 
-  // Walk up from a contenteditable until we find a container that has BOTH
-  // the contenteditable AND a positively-identified send button.
-  // This skips small wrappers (e.g. text area with just a chevron button)
-  // and lands on the real form/dialog that spans compose + footer.
-  function _findComposeContainer(ce, maxSteps) {
-    let cur = ce.parentElement;
-    for (let i = 0; i < maxSteps; i++) {
-      if (!cur || cur === document.body) return null;
-      // Require: has contenteditable + at least one positively-named send button
-      if (cur.querySelector('[contenteditable]')) {
-        const btns = Array.from(cur.querySelectorAll('button, [role="button"]'));
-        if (btns.some(b => _isSendBtn(b))) return cur;
-      }
-      cur = cur.parentElement;
-    }
-    return null;
-  }
-
-  // Is b a "send" button by name/class/aria/text?
+  // Is this a LinkedIn send button? Match class / aria / data-attr / text.
   function _isSendBtn(b) {
     if (!b || b.classList.contains('rf-toolbar-btn')) return false;
     const aria = (b.getAttribute('aria-label') || '').toLowerCase();
@@ -450,16 +432,25 @@
     const ctrl = (b.getAttribute('data-control-name') || '').toLowerCase();
     const text = (b.innerText || b.textContent || '').toLowerCase().replace(/\s+/g,' ').trim();
     return cls.includes('send') || ctrl.includes('send') || aria.includes('send') ||
-           text === 'send' || text === 'send message' || text.startsWith('send ') ||
-           text.endsWith(' send') || text.includes('send message');
+           text === 'send' || text === 'send message' ||
+           text.startsWith('send ') || text.endsWith(' send');
   }
 
-  // Find the send button inside a compose container — named match only,
-  // no structural guessing (prevents injecting next to wrong buttons like chevrons).
-  function _findSendBtn(container) {
-    return Array.from(container.querySelectorAll('button, [role="button"]'))
-      .find(b => !b.classList.contains('rf-toolbar-btn') && _isVisible(b) && _isSendBtn(b))
-      || null;
+  // Does this element have a [contenteditable] somewhere in its subtree?
+  function _hasCompose(el) {
+    return !!el.querySelector('[contenteditable]');
+  }
+
+  // Walk UP from `el` to find the nearest ancestor whose subtree also
+  // contains a [contenteditable] — i.e. the shared parent of Send + compose.
+  function _nearestSharedParent(el, maxSteps) {
+    let cur = el.parentElement;
+    for (let i = 0; i < maxSteps; i++) {
+      if (!cur || cur === document.body) return null;
+      if (_hasCompose(cur)) return cur;
+      cur = cur.parentElement;
+    }
+    return null;
   }
 
   function _injectNextTo(sendBtn) {
@@ -468,86 +459,67 @@
     if (parent.querySelector('.rf-toolbar-btn')) return;
     const rfBtn = createRFBtn();
     parent.insertBefore(rfBtn, sendBtn);
-    console.log('[RecruitFlow] ✅ RF injected | tag:', sendBtn.tagName,
+    console.log('[RecruitFlow] ✅ Injected | tag:', sendBtn.tagName,
       '| cls:', (sendBtn.className||'').slice(0,60),
-      '| aria:', sendBtn.getAttribute('aria-label'));
-  }
-
-  // Collect all unique compose containers on the page right now.
-  // A valid container must have BOTH [contenteditable] AND a named send button.
-  function _getComposeContainers() {
-    const containers = new Set();
-
-    // Walk up from every contenteditable to find its real form container
-    document.querySelectorAll('[contenteditable]').forEach(ce => {
-      const c = _findComposeContainer(ce, 35);
-      if (c) containers.add(c);
-    });
-
-    // Also scan known LinkedIn selectors — accept only those with a send button
-    [
-      '.msg-form',
-      '[class*="msg-form"]',
-      '[class*="msg-compose"]',
-      '[class*="compose-form"]',
-      '[class*="messaging-compose"]',
-      '[class*="conversation-form"]',
-      '[class*="msg-overlay"]',
-      '[role="dialog"]'
-    ].forEach(sel => {
-      try {
-        document.querySelectorAll(sel).forEach(el => {
-          if (!el.querySelector('[contenteditable]')) return;
-          const hasSend = Array.from(el.querySelectorAll('button,[role="button"]'))
-            .some(b => _isSendBtn(b));
-          if (hasSend) containers.add(el);
-        });
-      } catch (_) {}
-    });
-
-    return containers;
+      '| aria:', sendBtn.getAttribute('aria-label'),
+      '| text:', (sendBtn.innerText||'').trim().slice(0,20));
   }
 
   function _tryInject() {
-    // Remove stale RF buttons if their sibling send button is gone
+    // ── Cleanup: remove RF buttons whose Send sibling is gone ─────────────
     document.querySelectorAll('.rf-toolbar-btn').forEach(rfBtn => {
       if (!rfBtn.isConnected || !rfBtn.parentNode) { rfBtn.remove(); return; }
-      const hasSendSibling = Array.from(
-        rfBtn.parentNode.querySelectorAll('button, [role="button"]')
-      ).some(b => b !== rfBtn && _isSendBtn(b));
-      if (!hasSendSibling) rfBtn.remove();
+      const hasSend = Array.from(rfBtn.parentNode.querySelectorAll('button,[role="button"]'))
+        .some(b => b !== rfBtn && _isSendBtn(b));
+      if (!hasSend) rfBtn.remove();
     });
 
-    // For every compose container, find + inject next to its send button
-    _getComposeContainers().forEach(container => {
-      // Skip if already has RF button somewhere inside
-      if (container.querySelector('.rf-toolbar-btn')) return;
-      const sendBtn = _findSendBtn(container);
-      if (sendBtn) _injectNextTo(sendBtn);
+    // ── Core: scan EVERY button/[role=button] on the page ────────────────
+    // For each one that looks like a Send button AND has a compose area
+    // somewhere in the same DOM branch, inject RF next to it.
+    // This works regardless of how deep or separate the DOM branches are.
+    document.querySelectorAll('button, [role="button"]').forEach(btn => {
+      if (btn.classList.contains('rf-toolbar-btn')) return;
+      if (!_isVisible(btn)) return;
+      if (!_isSendBtn(btn)) return;
+      // Already has RF sibling?
+      if (btn.parentNode && btn.parentNode.querySelector('.rf-toolbar-btn')) return;
+      // Verify it's actually part of a messaging compose UI
+      // by checking if walking up finds a [contenteditable] in the same subtree
+      const shared = _nearestSharedParent(btn, 40);
+      if (shared) {
+        _injectNextTo(btn);
+      } else {
+        // The compose box might be a sibling of the footer, not inside the dialog.
+        // Fall back: check if any visible [contenteditable] is within 600px on screen.
+        const br = btn.getBoundingClientRect();
+        const nearby = Array.from(document.querySelectorAll('[contenteditable]')).some(ce => {
+          const cr = ce.getBoundingClientRect();
+          return cr.width > 80 && Math.abs(br.left - cr.left) < 600 &&
+                 br.top > cr.top && br.top - cr.bottom < 300;
+        });
+        if (nearby) _injectNextTo(btn);
+      }
     });
   }
 
-  // Periodic debug snapshot so we can see what's on page if injection misses
-  let _snapCount = 0;
-  function _debugSnap() {
-    if (_snapCount++ > 3) return; // only first 3 snapshots
-    const containers = _getComposeContainers();
-    console.log('[RecruitFlow] 📸 compose containers found:', containers.size);
-    containers.forEach(c => {
-      const btns = Array.from(c.querySelectorAll('button,[role="button"]'))
-        .filter(b => !b.classList.contains('rf-toolbar-btn') && _isVisible(b))
-        .map(b => ({
-          tag: b.tagName, cls: (b.className||'').slice(0,50),
-          aria: b.getAttribute('aria-label'), text: (b.innerText||'').trim().slice(0,20),
-          ctrl: b.getAttribute('data-control-name')
-        }));
-      console.log('[RecruitFlow]   container:', c.tagName, (c.className||'').slice(0,60), '| visible buttons:', btns);
-    });
-  }
+  // Debug: every 3s log all visible send-like buttons on page (first 4 times)
+  let _dbgN = 0;
+  setInterval(() => {
+    if (_dbgN++ >= 4) return;
+    const found = Array.from(document.querySelectorAll('button,[role="button"]'))
+      .filter(b => !b.classList.contains('rf-toolbar-btn') && _isVisible(b));
+    console.log('[RecruitFlow] 📸 All visible buttons (' + found.length + '):',
+      found.map(b => ({
+        tag: b.tagName, cls: (b.className||'').slice(0,50),
+        aria: b.getAttribute('aria-label'), text: (b.innerText||'').trim().slice(0,20),
+        isSend: _isSendBtn(b)
+      }))
+    );
+  }, 3000);
 
   setInterval(_tryInject, 400);
-  setInterval(_debugSnap, 3000);
   _tryInject();
   new MutationObserver(() => _tryInject()).observe(document.body, { childList: true, subtree: true });
-
+    console.log('[RecruitFlow] 📸 compose containers found:', containers.size);
 })();
