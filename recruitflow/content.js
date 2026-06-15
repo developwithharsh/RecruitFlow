@@ -413,16 +413,21 @@
   }
 
   // ════════════════════════════════════════════════════════════════════════
-  //  RF BUTTON — beside every LinkedIn Send button
+  //  RF BUTTON — one instance, beside every LinkedIn Send button
   // ════════════════════════════════════════════════════════════════════════
+
+  // Track which Send buttons already have RF (prevents double-injection)
+  const _rfDone = new WeakSet();
 
   function rfIsSend(b) {
     if (!b || b.classList.contains('rf-toolbar-btn')) return false;
+    if (_rfDone.has(b)) return false;
     const aria = (b.getAttribute('aria-label') || '').toLowerCase();
     const cls  = (typeof b.className === 'string' ? b.className : '').toLowerCase();
     const ctrl = (b.getAttribute('data-control-name') || '').toLowerCase();
-    const text = (b.textContent || '').replace(/\s+/g,' ').trim().toLowerCase();
+    const text = (b.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
     return text === 'send' ||
+           text.startsWith('send ') ||
            aria === 'send' ||
            aria.startsWith('send ') ||
            cls.includes('msg-form__send') ||
@@ -432,31 +437,57 @@
 
   function rfInject(sendBtn) {
     if (!sendBtn || !sendBtn.parentNode) return;
+    if (_rfDone.has(sendBtn)) return;  // already injected — skip
     if (sendBtn.parentNode.querySelector('.rf-toolbar-btn')) return;
+    _rfDone.add(sendBtn);              // mark as done
     const rfBtn = createRFBtn();
     sendBtn.parentNode.insertBefore(rfBtn, sendBtn);
-    console.log('[RF] ✅ injected next to', sendBtn.tagName, sendBtn.className, (sendBtn.textContent||'').trim().slice(0,15));
+    console.log('[RF] ✅ injected | text:', (sendBtn.textContent||'').trim().slice(0,15),
+      '| cls:', (sendBtn.className||'').slice(0,50));
+  }
+
+  // Does this element's subtree contain a message compose input?
+  function rfHasCompose(el) {
+    return !!(
+      el.querySelector('[contenteditable]') ||
+      el.querySelector('[role="textbox"]') ||
+      el.querySelector('[data-placeholder*="message" i]') ||
+      el.querySelector('[aria-placeholder*="message" i]') ||
+      el.querySelector('[aria-label*="message" i][contenteditable]') ||
+      el.querySelector('.msg-form__contenteditable')
+    );
   }
 
   function rfScan() {
-    // ── Cleanup stale RF buttons ──────────────────────────────────────────
+    // ── Cleanup RF buttons whose Send sibling is gone ─────────────────────
     document.querySelectorAll('.rf-toolbar-btn').forEach(rf => {
       if (!rf.isConnected || !rf.parentNode) { rf.remove(); return; }
       const hasSend = Array.from(rf.parentNode.querySelectorAll('button,[role="button"]'))
         .some(b => b !== rf && rfIsSend(b));
-      if (!hasSend) rf.remove();
+      // Also keep if previous/next Send sibling is in _rfDone (button still present)
+      if (!hasSend) {
+        const sibSend = rf.nextElementSibling;
+        if (!sibSend || !_rfDone.has(sibSend)) rf.remove();
+      }
     });
 
-    // ── PRIMARY: walk UP from every compose input ─────────────────────────
-    // At each ancestor level, search ALL descendants for a Send button.
-    // When we reach the common parent of compose+footer, we find it.
-    const COMPOSE_SEL = '[contenteditable], [role="textbox"], .msg-form__contenteditable';
+    // ── Walk UP from every compose input, find Send button ────────────────
+    // At each ancestor level we search ALL descendants — when we reach the
+    // common parent of compose+footer, querySelectorAll finds the Send button.
+    const COMPOSE_SEL = [
+      '[contenteditable]',
+      '[role="textbox"]',
+      '.msg-form__contenteditable',
+      '[data-placeholder*="message" i]',
+      '[aria-placeholder*="message" i]'
+    ].join(',');
+
     document.querySelectorAll(COMPOSE_SEL).forEach(compose => {
       let el = compose.parentElement;
-      for (let i = 0; i < 30; i++) {
+      for (let i = 0; i < 35; i++) {
         if (!el || el === document.body) break;
         const sendBtn = Array.from(el.querySelectorAll('button, [role="button"]'))
-          .find(b => !b.classList.contains('rf-toolbar-btn') && rfIsSend(b));
+          .find(b => rfIsSend(b));
         if (sendBtn) {
           rfInject(sendBtn);
           break;
@@ -465,43 +496,41 @@
       }
     });
 
-    // ── SECONDARY: any matched send button that has compose in same subtree ─
+    // ── Also scan Send buttons directly (catches contexts missed above) ───
     document.querySelectorAll('button, [role="button"]').forEach(btn => {
       if (!rfIsSend(btn)) return;
-      if (btn.parentNode && btn.parentNode.querySelector('.rf-toolbar-btn')) return;
+      if (_rfDone.has(btn)) return;
+      // Walk UP from Send button to find shared compose ancestor
       let el = btn.parentElement;
-      for (let i = 0; i < 30; i++) {
+      for (let i = 0; i < 35; i++) {
         if (!el || el === document.body) break;
-        if (el.querySelector('[contenteditable], [role="textbox"]')) {
-          rfInject(btn); return;
-        }
+        if (rfHasCompose(el)) { rfInject(btn); return; }
         el = el.parentElement;
       }
     });
   }
 
   function rfBurst() {
-    [100, 400, 800, 1300, 2000, 3000, 5000].forEach(ms => setTimeout(rfScan, ms));
+    [100, 400, 900, 1500, 2500, 4000].forEach(ms => setTimeout(rfScan, ms));
   }
 
   // ── Triggers ─────────────────────────────────────────────────────────────
   setInterval(rfScan, 350);
   try { new MutationObserver(rfScan).observe(document.body, { childList:true, subtree:true }); } catch(_){}
   document.addEventListener('click',   rfBurst, true);
-  document.addEventListener('focusin', e => { try { if(e.target && (e.target.isContentEditable || e.target.tagName==='TEXTAREA')) rfBurst(); } catch(_){} }, true);
+  document.addEventListener('focusin', e => {
+    try {
+      const t = e.target;
+      if (t && (t.isContentEditable || t.tagName === 'TEXTAREA' || t.getAttribute('role') === 'textbox'))
+        rfBurst();
+    } catch(_){}
+  }, true);
   window.addEventListener('popstate',   rfBurst);
   window.addEventListener('hashchange', rfBurst);
   try { const _op=history.pushState.bind(history); history.pushState=function(...a){_op(...a);rfBurst();}; } catch(_){}
   try { const _or=history.replaceState.bind(history); history.replaceState=function(...a){_or(...a);rfBurst();}; } catch(_){}
 
-  // Boot
-  console.log('[RF] content.js v10 booted');
-  try {
-    const b=document.createElement('div');
-    b.textContent='⚡ RecruitFlow v10';
-    b.style.cssText='position:fixed;bottom:12px;left:12px;z-index:2147483647;background:#2563EB;color:#fff;padding:5px 14px;border-radius:8px;font:700 13px sans-serif;pointer-events:none;';
-    document.body.appendChild(b); setTimeout(()=>b.remove(),4000);
-  } catch(_){}
+  console.log('[RF] v11 booted');
   rfBurst();
 
 })();
