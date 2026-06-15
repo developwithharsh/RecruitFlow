@@ -412,169 +412,171 @@
     return btn;
   }
 
-  // ── RF button injection ───────────────────────────────────────────────────
+  // ════════════════════════════════════════════════════════════════════════
+  //  RF BUTTON — appears beside every LinkedIn Send button, zero refresh needed
+  // ════════════════════════════════════════════════════════════════════════════
 
-  // Proof-of-life banner (disappears after 3s)
+  function rfCreateBtn() {
+    const btn = document.createElement('button');
+    btn.className = 'rf-toolbar-btn';
+    btn.title = 'RecruitFlow — Quick Send';
+    btn.type  = 'button';
+    btn.innerHTML =
+      '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="margin-right:3px;vertical-align:middle;">' +
+      '<path d="M22 2L11 13" stroke="#2563EB" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>' +
+      '<path d="M22 2L15 22 11 13 2 9l20-7z" stroke="#2563EB" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>' +
+      '</svg>' +
+      '<span style="font-weight:700;font-size:11px;color:#2563EB;vertical-align:middle;">RF</span>';
+    btn.style.cssText = [
+      'display:inline-flex','align-items:center','justify-content:center',
+      'background:#EFF6FF','border:1.5px solid #2563EB','border-radius:7px',
+      'padding:0 8px','height:32px','cursor:pointer','margin-right:6px',
+      'font-family:-apple-system,BlinkMacSystemFont,sans-serif',
+      'flex-shrink:0','vertical-align:middle','box-sizing:border-box'
+    ].join(';');
+    btn.addEventListener('mouseenter', () => { btn.style.background = '#DBEAFE'; });
+    btn.addEventListener('mouseleave', () => { btn.style.background = '#EFF6FF'; });
+    btn.addEventListener('click', e => { e.stopPropagation(); e.preventDefault(); buildCardPopup(btn); });
+    return btn;
+  }
+
+  // Is this button LinkedIn's "Send" button?
+  function rfIsSend(btn) {
+    if (!btn) return false;
+    if (btn.classList.contains('rf-toolbar-btn')) return false;
+    const text = (btn.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
+    const aria = (btn.getAttribute('aria-label') || '').toLowerCase();
+    const cls  = (typeof btn.className === 'string' ? btn.className : '').toLowerCase();
+    const ctrl = (btn.getAttribute('data-control-name') || '').toLowerCase();
+    return (
+      text === 'send' ||
+      aria  === 'send' ||
+      aria.startsWith('send ') ||
+      cls.includes('send-button') ||
+      cls.includes('send_button') ||
+      cls.includes('sendbutton') ||
+      ctrl === 'send' ||
+      ctrl.includes('send')
+    );
+  }
+
+  // Inject RF button immediately to the left of `sendBtn`
+  function rfInject(sendBtn) {
+    if (!sendBtn || !sendBtn.parentNode) return;
+    if (sendBtn.parentNode.querySelector('.rf-toolbar-btn')) return;
+    const rfBtn = rfCreateBtn();
+    sendBtn.parentNode.insertBefore(rfBtn, sendBtn);
+    console.log('[RecruitFlow] ✅ RF injected |',
+      sendBtn.tagName, '|', (sendBtn.className || '').slice(0, 50),
+      '| text:', (sendBtn.textContent || '').trim().slice(0, 20));
+  }
+
+  // Is this element inside (or near) a LinkedIn message compose area?
+  // Walk UP from btn — if any ancestor's subtree contains a text-input area,
+  // this Send button belongs to a compose form.
+  function rfNearCompose(btn) {
+    // Selectors that identify a message input (broad — covers all LinkedIn compose contexts)
+    const INPUT_SEL = '[contenteditable], [role="textbox"], textarea, .msg-form__contenteditable';
+
+    let el = btn.parentElement;
+    for (let i = 0; i < 25; i++) {
+      if (!el || el === document.body) break;
+      if (el.querySelector(INPUT_SEL)) return true;
+      el = el.parentElement;
+    }
+
+    // Fallback: any visible input within 400px vertically on screen
+    const br = btn.getBoundingClientRect();
+    if (br.width > 0 && br.height > 0) {
+      return Array.from(document.querySelectorAll(INPUT_SEL)).some(inp => {
+        try {
+          const r = inp.getBoundingClientRect();
+          return r.width > 40 &&
+                 br.top >= r.top - 60 &&
+                 br.top <= r.bottom + 400 &&
+                 Math.abs(br.left - r.left) < 900;
+        } catch (_) { return false; }
+      });
+    }
+    return false;
+  }
+
+  function rfScan() {
+    try {
+      // 1. Remove RF buttons whose Send sibling disappeared
+      document.querySelectorAll('.rf-toolbar-btn').forEach(rf => {
+        try {
+          if (!rf.isConnected || !rf.parentNode) { rf.remove(); return; }
+          const hasSend = Array.from(rf.parentNode.querySelectorAll('button,[role="button"]'))
+            .some(b => b !== rf && rfIsSend(b));
+          if (!hasSend) rf.remove();
+        } catch (_) {}
+      });
+
+      // 2. Find every Send button on the page and inject RF next to it
+      document.querySelectorAll('button, [role="button"]').forEach(btn => {
+        try {
+          if (!rfIsSend(btn)) return;
+          if (btn.parentNode && btn.parentNode.querySelector('.rf-toolbar-btn')) return;
+          if (rfNearCompose(btn)) rfInject(btn);
+        } catch (_) {}
+      });
+    } catch (e) {
+      console.warn('[RecruitFlow] scan error:', e.message);
+    }
+  }
+
+  // ── Boot ──────────────────────────────────────────────────────────────────
+
+  console.log('[RecruitFlow] v9 booted on', window.location.href);
+
+  // Show a brief banner so we can confirm the script is actually running
   try {
-    const banner = document.createElement('div');
-    banner.id = 'rf-alive-banner';
-    banner.textContent = '⚡ RecruitFlow loaded';
-    banner.style.cssText = 'position:fixed;bottom:10px;left:10px;z-index:2147483647;background:#2563EB;color:#fff;padding:6px 12px;border-radius:8px;font-size:13px;font-weight:700;font-family:sans-serif;pointer-events:none;';
-    document.body.appendChild(banner);
-    setTimeout(() => banner.remove(), 3000);
+    const b = document.createElement('div');
+    b.textContent = '⚡ RecruitFlow active';
+    b.style.cssText = 'position:fixed;bottom:12px;left:12px;z-index:2147483647;background:#2563EB;color:#fff;padding:5px 12px;border-radius:8px;font:700 13px/1.4 sans-serif;pointer-events:none;';
+    document.body.appendChild(b);
+    setTimeout(() => b.remove(), 3000);
   } catch (_) {}
 
-  console.log('[RecruitFlow] v8 loaded on', window.location.href);
+  // Continuous poll — backbone
+  setInterval(rfScan, 350);
 
-  function _isSendBtn(b) {
+  // DOM mutations — catches React renders of new compose windows
+  try {
+    new MutationObserver(rfScan)
+      .observe(document.body, { childList: true, subtree: true });
+  } catch (_) {}
+
+  // Every user click may open a new chat or modal — burst-scan for 6 seconds after
+  function rfBurst() {
+    [200, 500, 900, 1400, 2200, 3200, 4500, 6000].forEach(ms =>
+      setTimeout(rfScan, ms)
+    );
+  }
+
+  document.addEventListener('click',   rfBurst, true);
+  document.addEventListener('focusin', e => {
     try {
-      if (!b || b.classList.contains('rf-toolbar-btn')) return false;
-      const aria = (b.getAttribute('aria-label') || '').toLowerCase();
-      const cls  = (typeof b.className === 'string' ? b.className : '').toLowerCase();
-      const ctrl = (b.getAttribute('data-control-name') || '').toLowerCase();
-      const text = (b.textContent || '').toLowerCase().replace(/\s+/g, ' ').trim();
-      return cls.includes('send') || ctrl.includes('send') || aria.includes('send') ||
-             text === 'send' || text.startsWith('send') || text.endsWith('send');
-    } catch (_) { return false; }
-  }
+      if (e.target && (e.target.isContentEditable || e.target.tagName === 'TEXTAREA'))
+        rfBurst();
+    } catch (_) {}
+  }, true);
 
-  function _injectNextTo(btn) {
-    try {
-      if (!btn || !btn.parentNode) return;
-      if (btn.parentNode.querySelector('.rf-toolbar-btn')) return;
-      const rfBtn = createRFBtn();
-      btn.parentNode.insertBefore(rfBtn, btn);
-      console.log('[RecruitFlow] ✅ Injected next to:', btn.tagName,
-        (btn.className||'').slice(0,60), '| text:', (btn.textContent||'').trim().slice(0,15));
-    } catch (e) { console.warn('[RecruitFlow] inject err:', e.message); }
-  }
+  // SPA navigation
+  window.addEventListener('popstate',   rfBurst);
+  window.addEventListener('hashchange', rfBurst);
+  try {
+    const _op = history.pushState.bind(history);
+    history.pushState = function (...a) { _op(...a); rfBurst(); };
+  } catch (_) {}
+  try {
+    const _or = history.replaceState.bind(history);
+    history.replaceState = function (...a) { _or(...a); rfBurst(); };
+  } catch (_) {}
 
-  function _tryInject() {
-    try {
-      // ── Cleanup ──────────────────────────────────────────────────────────
-      document.querySelectorAll('.rf-toolbar-btn').forEach(rfBtn => {
-        try {
-          if (!rfBtn.isConnected || !rfBtn.parentNode) { rfBtn.remove(); return; }
-          const hasSend = Array.from(rfBtn.parentNode.querySelectorAll('button,[role="button"]'))
-            .some(b => b !== rfBtn && _isSendBtn(b));
-          if (!hasSend) rfBtn.remove();
-        } catch (_) {}
-      });
-
-      // ── TIER 1: direct LinkedIn class selectors (fastest) ────────────────
-      [
-        '.msg-form__send-button',
-        '[data-control-name="send"]',
-        '[data-control-name="send_message"]',
-        '[class*="send-button"]',
-        '[class*="send_button"]',
-        '[class*="sendButton"]',
-        '[class*="send-btn"]',
-      ].forEach(sel => {
-        try {
-          document.querySelectorAll(sel).forEach(btn => {
-            if (!btn.classList.contains('rf-toolbar-btn'))
-              _injectNextTo(btn);
-          });
-        } catch (_) {}
-      });
-
-      // ── TIER 2: sibling detection from [contenteditable] ─────────────────
-      // LinkedIn compose box and footer toolbar are SIBLINGS.
-      // Walk up from contenteditable → at each level look at following siblings.
-      document.querySelectorAll('[contenteditable]').forEach(ce => {
-        try {
-          let cur = ce.parentElement;
-          for (let level = 0; level < 20; level++) {
-            if (!cur || !cur.parentElement || cur === document.body) break;
-            const parent = cur.parentElement;
-            const kids   = Array.from(parent.children);
-            const idx    = kids.indexOf(cur);
-
-            // Check all siblings AFTER cur (footer is below compose)
-            for (let j = idx + 1; j < kids.length; j++) {
-              const sib  = kids[j];
-              if (sib.querySelector('.rf-toolbar-btn')) return; // done
-              const btns = Array.from(sib.querySelectorAll('button, [role="button"]'))
-                             .filter(b => !b.classList.contains('rf-toolbar-btn'));
-              if (!btns.length) continue;
-              // Prefer named send, fallback to last button
-              const sendBtn = btns.find(_isSendBtn) || btns[btns.length - 1];
-              _injectNextTo(sendBtn);
-              return; // injected — stop walking for this contenteditable
-            }
-
-            // Also check siblings BEFORE (in case toolbar is above)
-            for (let j = idx - 1; j >= 0; j--) {
-              const sib  = kids[j];
-              if (sib.querySelector('.rf-toolbar-btn')) return;
-              const btns = Array.from(sib.querySelectorAll('button, [role="button"]'))
-                             .filter(b => !b.classList.contains('rf-toolbar-btn'));
-              const sendBtn = btns.find(_isSendBtn);
-              if (sendBtn) { _injectNextTo(sendBtn); return; }
-            }
-
-            cur = parent;
-          }
-        } catch (_) {}
-      });
-
-      // ── TIER 3: walk UP from every send button ────────────────────────────
-      document.querySelectorAll('button, [role="button"]').forEach(btn => {
-        try {
-          if (btn.classList.contains('rf-toolbar-btn')) return;
-          if (!_isSendBtn(btn)) return;
-          if (btn.parentNode && btn.parentNode.querySelector('.rf-toolbar-btn')) return;
-
-          let cur = btn.parentElement;
-          for (let i = 0; i < 50; i++) {
-            if (!cur || cur === document.body) break;
-            if (cur.querySelector('[contenteditable]')) {
-              _injectNextTo(btn); return;
-            }
-            cur = cur.parentElement;
-          }
-        } catch (_) {}
-      });
-
-      // ── TIER 4: position-based ────────────────────────────────────────────
-      document.querySelectorAll('button, [role="button"]').forEach(btn => {
-        try {
-          if (btn.classList.contains('rf-toolbar-btn')) return;
-          if (!_isSendBtn(btn)) return;
-          if (btn.parentNode && btn.parentNode.querySelector('.rf-toolbar-btn')) return;
-          const br = btn.getBoundingClientRect();
-          if (br.width < 1) return;
-          const near = Array.from(document.querySelectorAll('[contenteditable]')).some(ce => {
-            try {
-              const cr = ce.getBoundingClientRect();
-              return cr.width > 60 && br.top >= cr.top - 50 &&
-                     br.top <= cr.bottom + 350 &&
-                     Math.abs((br.left + br.right)/2 - (cr.left + cr.right)/2) < 900;
-            } catch (_) { return false; }
-          });
-          if (near) _injectNextTo(btn);
-        } catch (_) {}
-      });
-
-    } catch (e) { console.warn('[RecruitFlow] _tryInject err:', e.message); }
-  }
-
-  function _burst(n, ms) {
-    let i = 0;
-    const run = () => { _tryInject(); if (++i < n) setTimeout(run, ms); };
-    try { run(); } catch (_) {}
-  }
-
-  setInterval(_tryInject, 400);
-  try { new MutationObserver(() => _tryInject()).observe(document.body, { childList: true, subtree: true }); } catch (_) {}
-  document.addEventListener('click',   () => _burst(12, 400), true);
-  document.addEventListener('focusin', e => { try { if (e.target && e.target.isContentEditable) _burst(8, 300); } catch (_) {} }, true);
-  window.addEventListener('popstate',   () => _burst(12, 500));
-  window.addEventListener('hashchange', () => _burst(12, 500));
-  try { const _op = history.pushState.bind(history); history.pushState = function(...a) { _op(...a); _burst(12, 500); }; } catch (_) {}
-  try { const _or = history.replaceState.bind(history); history.replaceState = function(...a) { _or(...a); _burst(8, 400); }; } catch (_) {}
-  _burst(10, 600);
+  // Initial scan (burst from 0 to 8s to catch slow page renders)
+  rfBurst();
 
 })();
 
