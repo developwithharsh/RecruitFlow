@@ -412,55 +412,77 @@
     return btn;
   }
 
-  // ── RF button injection — polls every 500ms, no complex logic ──────────────
+  // ── RF button injection ───────────────────────────────────────────────────
+
+  console.log('[RecruitFlow] content.js loaded on', window.location.href);
 
   function _isSendBtn(b) {
     if (!b || b.classList.contains('rf-toolbar-btn')) return false;
     const aria = (b.getAttribute('aria-label') || '').toLowerCase();
-    const text = (b.innerText || b.textContent || '').toLowerCase();
-    return b.classList.contains('msg-form__send-button') ||
+    const text = (b.innerText || b.textContent || '').toLowerCase().trim();
+    const cls  = b.className || '';
+    return cls.includes('msg-form__send-button') ||
            b.getAttribute('data-control-name') === 'send' ||
            aria === 'send' || aria === 'send message' || aria.startsWith('send ') ||
-           text.trim() === 'send' || text.trim() === 'send message' ||
-           text.startsWith('send\n') || text.startsWith('send ');
+           text === 'send' || text === 'send message';
+  }
+
+  function _injectNextTo(sendBtn) {
+    if (!sendBtn || !sendBtn.parentNode) return;
+    if (sendBtn.parentNode.querySelector('.rf-toolbar-btn')) return;
+    const rfBtn = createRFBtn();
+    sendBtn.parentNode.insertBefore(rfBtn, sendBtn);
+    console.log('[RecruitFlow] RF button injected next to', sendBtn.className || sendBtn.tagName);
   }
 
   function _tryInject() {
-    // Remove stale RF buttons (their Send sibling was removed by LinkedIn re-render)
+    // Remove stale RF buttons
     document.querySelectorAll('.rf-toolbar-btn').forEach(rfBtn => {
-      if (!rfBtn.isConnected) { rfBtn.remove(); return; }
-      const parent = rfBtn.parentNode;
-      if (!parent) { rfBtn.remove(); return; }
-      const hasSend = Array.from(parent.querySelectorAll('button')).some(b => b !== rfBtn && _isSendBtn(b));
+      if (!rfBtn.isConnected || !rfBtn.parentNode) { rfBtn.remove(); return; }
+      const hasSend = Array.from(rfBtn.parentNode.querySelectorAll('button, [role="button"]'))
+        .some(b => b !== rfBtn && _isSendBtn(b));
       if (!hasSend) rfBtn.remove();
     });
 
-    // Find every LinkedIn compose box and inject RF next to its Send button
-    // Use the broadest possible contenteditable selector so no compose window is missed
+    // Strategy 1: direct class — fastest, works when LinkedIn uses known class
+    document.querySelectorAll('.msg-form__send-button, [data-control-name="send"]').forEach(sendBtn => {
+      if (_isSendBtn(sendBtn)) _injectNextTo(sendBtn);
+    });
+
+    // Strategy 2: scan common LinkedIn messaging containers for any send button
+    const CONTAINER_SELECTORS = [
+      '.msg-form',
+      '.msg-overlay-bubble-header__details',
+      '[class*="msg-form"]',
+      '[class*="msg-compose"]',
+      '[class*="compose-form"]',
+      '[role="dialog"]',
+      '[class*="conversation-form"]',
+      '[class*="messaging-compose"]'
+    ];
+    CONTAINER_SELECTORS.forEach(sel => {
+      document.querySelectorAll(sel).forEach(container => {
+        if (!container.querySelector('[contenteditable]')) return;
+        const sendBtn = Array.from(container.querySelectorAll('button, [role="button"]'))
+          .find(b => _isSendBtn(b));
+        if (sendBtn) _injectNextTo(sendBtn);
+      });
+    });
+
+    // Strategy 3: walk up from every contenteditable, search all descendants at each level
     document.querySelectorAll('[contenteditable]').forEach(compose => {
-      // Walk up the DOM — stop when we find a container that also has a Send button
       let el = compose.parentElement;
-      for (let i = 0; i < 12; i++) {
+      for (let i = 0; i < 20; i++) {
         if (!el || el === document.body) break;
-
-        const sendBtn = el.querySelector('button.msg-form__send-button') ||
-          Array.from(el.querySelectorAll('button')).find(_isSendBtn);
-
-        if (sendBtn) {
-          if (!sendBtn.parentNode.querySelector('.rf-toolbar-btn')) {
-            const rfBtn = createRFBtn();
-            sendBtn.parentNode.insertBefore(rfBtn, sendBtn);
-          }
-          break;
-        }
+        const sendBtn = Array.from(el.querySelectorAll('button, [role="button"]'))
+          .find(b => _isSendBtn(b));
+        if (sendBtn) { _injectNextTo(sendBtn); break; }
         el = el.parentElement;
       }
     });
   }
 
-  // Poll every 500ms — simple, reliable, no debounce complexity
   setInterval(_tryInject, 500);
-  // Also run immediately and on DOM changes for faster first injection
   _tryInject();
   new MutationObserver(_tryInject).observe(document.body, { childList: true, subtree: true });
 
