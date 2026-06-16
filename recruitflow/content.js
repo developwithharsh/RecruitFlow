@@ -416,71 +416,177 @@
   //  RF BUTTON — exactly one, immediately left of every LinkedIn Send button
   // ════════════════════════════════════════════════════════════════════════
 
-  // Strict: only match the actual messaging Send button
   function rfIsSend(b) {
     if (!b) return false;
     if (b.classList.contains('rf-toolbar-btn')) return false;
     if (b.getAttribute('data-rf-done')) return false;
-    const text = (b.textContent || '').replace(/\s+/g,' ').trim().toLowerCase();
-    const aria = (b.getAttribute('aria-label') || '').toLowerCase().trim();
-    const cls  = (typeof b.className === 'string' ? b.className : (b.getAttribute('class') || '')).toLowerCase();
-    return text === 'send' ||
-           aria === 'send' ||
-           aria === 'send message' ||
-           cls.includes('msg-form__send');
-  }
 
-  // Walk UP from btn: look for compose input OR known messaging container class.
-  // Compose and Send are SIBLINGS in LinkedIn's DOM — so we must reach their
-  // common ancestor before querySelector finds the compose input.
-  function rfInMessagingCtx(btn) {
-    const COMPOSE = '[contenteditable], [role="textbox"], .msg-form__contenteditable, textarea';
-    let el = btn.parentElement;
-    for (let i = 0; i < 30; i++) {
-      if (!el || el === document.body) break;
-      // Found a compose input as a descendant of this ancestor
-      if (el.querySelector(COMPOSE)) return true;
-      // OR we're inside a known LinkedIn messaging wrapper
-      const c = (typeof el.className === 'string' ? el.className : (el.getAttribute('class') || '')).toLowerCase();
-      if (c.includes('msg-form') || c.includes('msg-overlay') || c.includes('msg-convo') ||
-          c.includes('msg-thread') || c.includes('compose') || c.includes('messaging-compose')) return true;
-      // OR inside a dialog (new message modal)
-      if (el.getAttribute('role') === 'dialog') return true;
-      el = el.parentElement;
+    const text = (b.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
+    const aria = (b.getAttribute('aria-label') || '').toLowerCase().trim();
+    const cls  = (typeof b.className === 'string'
+      ? b.className
+      : (b.getAttribute('class') || '')).toLowerCase();
+    const dataControl = (b.getAttribute('data-control-name') || '').toLowerCase();
+    const type = (b.getAttribute('type') || '').toLowerCase();
+
+    // TEXT match
+    if (text === 'send' || text === 'send message') return true;
+
+    // ARIA match — covers all LinkedIn aria-label patterns
+    if (aria === 'send') return true;
+    if (aria === 'send message') return true;
+    if (aria.startsWith('send')) return true;
+
+    // CSS CLASS match — LinkedIn's stable class names
+    if (cls.includes('msg-form__send')) return true;
+    if (cls.includes('send-button') && cls.includes('msg')) return true;
+
+    // DATA-CONTROL-NAME match
+    if (dataControl === 'send' || dataControl === 'send_message') return true;
+
+    // TYPE=SUBMIT inside a messaging form
+    if (type === 'submit') {
+      let el = b.parentElement;
+      for (let i = 0; i < 20; i++) {
+        if (!el || el === document.body) break;
+        const c = (typeof el.className === 'string'
+          ? el.className
+          : (el.getAttribute('class') || '')).toLowerCase();
+        if (
+          c.includes('msg-form') ||
+          c.includes('msg-overlay') ||
+          c.includes('compose') ||
+          c.includes('messaging')
+        ) return true;
+        if (el.getAttribute('role') === 'dialog') return true;
+        el = el.parentElement;
+      }
     }
+
+    // ICON-ONLY button (no text, has SVG) that is a sibling/child of msg-form
+    if (!text) {
+      const hasSvg = !!b.querySelector('svg');
+      if (hasSvg) {
+        let el = b.parentElement;
+        for (let i = 0; i < 15; i++) {
+          if (!el || el === document.body) break;
+          const c = (typeof el.className === 'string'
+            ? el.className
+            : (el.getAttribute('class') || '')).toLowerCase();
+          if (
+            c.includes('msg-form') ||
+            c.includes('msg-overlay') ||
+            c.includes('compose')
+          ) return true;
+          if (el.getAttribute('role') === 'dialog') return true;
+          el = el.parentElement;
+        }
+      }
+    }
+
     return false;
   }
 
-  // Inject RF immediately before sendBtn — once per button element
+  function rfInMessagingCtx(btn) {
+    // Surface 1: Full messaging page — any Send button here is valid
+    if (window.location.href.includes('linkedin.com/messaging')) return true;
+
+    // Compose input selectors — covers all 3 LinkedIn chat surfaces
+    const COMPOSE_SELECTORS = [
+      '.msg-form__contenteditable',
+      '[contenteditable="true"]',
+      '[role="textbox"]',
+      '[aria-multiline="true"]',
+      'textarea',
+      '[data-placeholder]'
+    ];
+
+    // Walk UP the DOM from the Send button
+    let el = btn.parentElement;
+    for (let i = 0; i < 50; i++) {
+      if (!el || el === document.body) break;
+
+      // Check if this ancestor contains a compose input
+      for (const sel of COMPOSE_SELECTORS) {
+        try {
+          if (el.querySelector(sel)) return true;
+        } catch (_) {}
+      }
+
+      // Check ancestor class names for LinkedIn messaging containers
+      const c = (typeof el.className === 'string'
+        ? el.className
+        : (el.getAttribute('class') || '')).toLowerCase();
+
+      if (c.includes('msg-form')) return true;
+      if (c.includes('msg-overlay')) return true;
+      if (c.includes('msg-convo')) return true;
+      if (c.includes('msg-thread')) return true;
+      if (c.includes('msg-compose')) return true;
+      if (c.includes('messaging')) return true;
+      if (c.includes('compose')) return true;
+
+      // Dialog role = New message modal (Surface 3)
+      const role = (el.getAttribute('role') || '').toLowerCase();
+      if (role === 'dialog') return true;
+
+      el = el.parentElement;
+    }
+
+    return false;
+  }
+
   function rfInject(sendBtn) {
     if (!sendBtn || !sendBtn.parentNode) return;
     if (sendBtn.getAttribute('data-rf-done')) return;
+
+    // Check if RF button already exists immediately before this Send button
     const prev = sendBtn.previousElementSibling;
     if (prev && prev.classList.contains('rf-toolbar-btn')) {
       sendBtn.setAttribute('data-rf-done', '1');
       return;
     }
+
     sendBtn.setAttribute('data-rf-done', '1');
-    sendBtn.parentNode.insertBefore(createRFBtn(), sendBtn);
+
+    try {
+      const rfBtn = createRFBtn();
+      sendBtn.parentNode.insertBefore(rfBtn, sendBtn);
+    } catch (e) {
+      // Parent removed by LinkedIn re-render — reset flag so next scan can retry
+      sendBtn.removeAttribute('data-rf-done');
+    }
   }
 
   function rfScan() {
-    // Cleanup: remove RF whose next sibling is no longer a marked Send button
+    // Step 1: Clean up orphaned RF buttons
     document.querySelectorAll('.rf-toolbar-btn').forEach(rf => {
       if (!rf.isConnected || !rf.parentNode) { rf.remove(); return; }
       const next = rf.nextElementSibling;
-      if (!next || !next.getAttribute('data-rf-done')) rf.remove();
+      if (!next || !rfIsSend(next)) rf.remove();
     });
 
-    // Single pass over all buttons.
-    // seenParents ensures at most ONE RF per toolbar row (prevents [RF][Send][RF]).
-    const seenParents = new Set();
+    // Step 2: Reset data-rf-done on Send buttons that lost their RF sibling
+    // (LinkedIn re-renders the DOM and creates new button elements)
+    document.querySelectorAll('button, [role="button"]').forEach(btn => {
+      if (!rfIsSend(btn)) return;
+      if (!btn.getAttribute('data-rf-done')) return;
+      const prev = btn.previousElementSibling;
+      if (!prev || !prev.classList.contains('rf-toolbar-btn')) {
+        // RF sibling was removed — reset so we can re-inject
+        btn.removeAttribute('data-rf-done');
+      }
+    });
+
+    // Step 3: Inject RF button next to every valid Send button
+    const seenParents = new WeakSet();
     document.querySelectorAll('button, [role="button"]').forEach(btn => {
       if (!rfIsSend(btn)) return;
       if (!rfInMessagingCtx(btn)) return;
       const parent = btn.parentNode;
-      if (parent && seenParents.has(parent)) return;   // already handled this row
-      if (parent) seenParents.add(parent);
+      if (!parent) return;
+      if (seenParents.has(parent)) return; // one RF per toolbar row
+      seenParents.add(parent);
       rfInject(btn);
     });
   }
@@ -494,27 +600,55 @@
   }
 
   // ── Triggers ─────────────────────────────────────────────────────────────
-  setInterval(rfScan, 600);
 
-  try { new MutationObserver(rfSchedule).observe(document.body, { childList: true, subtree: true }); } catch (_) {}
+  // Faster interval — catches LinkedIn re-renders quickly
+  setInterval(rfScan, 400);
 
-  document.addEventListener('click', rfBurst, true);
+  // MutationObserver — fires on every DOM change
+  try {
+    new MutationObserver(rfSchedule).observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['class', 'aria-label', 'disabled']
+    });
+  } catch (_) {}
 
+  // Burst on any click — user opening a chat triggers this
+  document.addEventListener('click', e => {
+    rfBurst();
+    // Extra burst after delay for slow-loading chat windows
+    setTimeout(rfScan, 2000);
+    setTimeout(rfScan, 4000);
+  }, true);
+
+  // Burst when any input/compose box is focused
   document.addEventListener('focusin', e => {
     try {
-      if (e.target && (e.target.isContentEditable ||
-          e.target.getAttribute('role') === 'textbox' ||
-          e.target.tagName === 'TEXTAREA')) rfBurst();
+      if (e.target && (
+        e.target.isContentEditable ||
+        e.target.getAttribute('role') === 'textbox' ||
+        e.target.tagName === 'TEXTAREA' ||
+        e.target.getAttribute('aria-multiline') === 'true'
+      )) rfBurst();
     } catch (_) {}
   }, true);
+
+  // Burst on scroll — user scrolling through messaging list opens new chats
+  document.addEventListener('scroll', () => {
+    clearTimeout(window._rfScrollTimer);
+    window._rfScrollTimer = setTimeout(rfScan, 300);
+  }, true);
+
+  // Initial burst on page load with increasing delays
+  [200, 500, 1000, 2000, 3500, 5000].forEach(ms => setTimeout(rfScan, ms));
 
   window.addEventListener('popstate',   rfBurst);
   window.addEventListener('hashchange', rfBurst);
   try { const _p = history.pushState.bind(history);    history.pushState    = function(...a){_p(...a);rfBurst();}; } catch(_){}
   try { const _r = history.replaceState.bind(history); history.replaceState = function(...a){_r(...a);rfBurst();}; } catch(_){}
 
-  console.log('[RF] v14 ready');
-  rfBurst();
+  console.log('[RF] v15 ready');
 
 })();
 
