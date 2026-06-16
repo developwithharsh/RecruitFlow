@@ -559,26 +559,28 @@
   }
 
   function rfScan() {
-    // Step 1: Clean up orphaned RF buttons
+    // Step 1: Clean up orphaned RF buttons.
+    // Use data-rf-done attribute check — NOT rfIsSend() — because rfIsSend()
+    // returns false for buttons with data-rf-done, which would wrongly delete RF.
     document.querySelectorAll('.rf-toolbar-btn').forEach(rf => {
       if (!rf.isConnected || !rf.parentNode) { rf.remove(); return; }
       const next = rf.nextElementSibling;
-      if (!next || !rfIsSend(next)) rf.remove();
+      if (!next || !next.getAttribute('data-rf-done')) rf.remove();
     });
 
-    // Step 2: Reset data-rf-done on Send buttons that lost their RF sibling
-    // (LinkedIn re-renders the DOM and creates new button elements)
-    document.querySelectorAll('button, [role="button"]').forEach(btn => {
-      if (!rfIsSend(btn)) return;
-      if (!btn.getAttribute('data-rf-done')) return;
+    // Step 2: Reset data-rf-done on Send buttons whose RF sibling was removed.
+    // Query [data-rf-done] directly — do NOT use rfIsSend() here because it
+    // returns false for buttons that have data-rf-done set.
+    document.querySelectorAll('[data-rf-done]').forEach(btn => {
       const prev = btn.previousElementSibling;
       if (!prev || !prev.classList.contains('rf-toolbar-btn')) {
-        // RF sibling was removed — reset so we can re-inject
         btn.removeAttribute('data-rf-done');
       }
     });
 
-    // Step 3: Inject RF button next to every valid Send button
+    // Step 3: Inject RF next to every valid Send button.
+    // At this point data-rf-done is cleared on any button that lost its RF,
+    // so rfIsSend() will correctly find and match them again.
     const seenParents = new WeakSet();
     document.querySelectorAll('button, [role="button"]').forEach(btn => {
       if (!rfIsSend(btn)) return;
