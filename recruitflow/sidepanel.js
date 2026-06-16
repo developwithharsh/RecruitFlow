@@ -1690,14 +1690,22 @@
       pendingOTP = null; pendingSignupData = null;
     });
 
-    // Sign out hidden — auth bypassed
-    const signoutBtn = document.getElementById('rf-signout-btn');
-    if (signoutBtn) signoutBtn.style.display = 'none';
+    // Sign out
+    document.getElementById('rf-signout-btn')?.addEventListener('click', async () => {
+      const auth = await getAuth();
+      await setAuth({ ...auth, isLoggedIn: false, currentUser: null });
+      location.reload();
+    });
   }
 
   async function showAuthScreen() {
-    // Auth bypassed — go straight to main
-    await initMain();
+    const tabsEl  = document.querySelector('#recruitflow-sidebar-container .rf-tabs');
+    const panels  = document.querySelectorAll('#recruitflow-sidebar-container .rf-panel');
+    const authEl  = document.getElementById('rf-auth-screen');
+    if (tabsEl) tabsEl.style.display = 'none';
+    panels.forEach(p => { p.style.display = 'none'; });
+    if (authEl) authEl.style.display = 'flex';
+    wireAuthScreen();
   }
 
   async function onAuthSuccess(userName) {
@@ -1728,9 +1736,15 @@
       if (profile) updateProfileBanner(profile);
     });
 
-    // Skip auth — go straight to main app
+    const auth = await getAuth();
+    const user = getCurrentUser(auth);
+    if (!user) {
+      await showAuthScreen();
+      return;
+    }
+    // Update header name
     const nameEl = document.getElementById('rf-header-name');
-    if (nameEl) nameEl.textContent = '';
+    if (nameEl) nameEl.textContent = (user.name || '').split(' ')[0];
 
     const settings = (await storageGet('recruitflow_settings')) || {};
     if (!settings.onboarding_complete) {
