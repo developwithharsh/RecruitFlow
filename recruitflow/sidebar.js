@@ -1944,7 +1944,23 @@
       const doc = parser.parseFromString(html, 'text/html');
       const container = doc.getElementById('recruitflow-sidebar-container');
       if (container) {
+        // Remove the side-panel-specific style block that hides the toggle tab
+        doc.querySelectorAll('style').forEach(s => {
+          if (s.textContent.includes('rf-toggle-tab')) s.remove();
+        });
+
+        // Start collapsed — only the arrow tab is visible
+        container.classList.add('collapsed');
         document.body.appendChild(container);
+
+        // Wire toggle tab immediately (before init) so arrow works right away
+        const toggleTab = container.querySelector('.rf-toggle-tab');
+        if (toggleTab) {
+          toggleTab.addEventListener('click', (e) => {
+            e.stopPropagation();
+            container.classList.toggle('collapsed');
+          }, true);
+        }
       }
     } catch (e) {
       console.error('[RF] Failed to inject sidebar HTML:', e);
