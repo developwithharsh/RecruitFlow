@@ -1933,15 +1933,43 @@
     }
   });
 
-  // ── Boot when sidebar HTML is in the DOM ─────────────────────────────────
-  function tryInit() {
-    if (document.getElementById('rf-save-to-jd-btn')) { init(); }
-    else { setTimeout(tryInit, 200); }
+  // ── Inject sidebar HTML from sidepanel.html into the LinkedIn page ──────
+  async function injectSidebarHTML() {
+    if (document.getElementById('recruitflow-sidebar-container')) return; // already injected
+    try {
+      const url = chrome.runtime.getURL('sidepanel.html');
+      const res = await fetch(url);
+      const html = await res.text();
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      const container = doc.getElementById('recruitflow-sidebar-container');
+      if (container) {
+        document.body.appendChild(container);
+      }
+    } catch (e) {
+      console.error('[RF] Failed to inject sidebar HTML:', e);
+    }
+  }
+
+  // ── Boot: inject HTML then init ───────────────────────────────────────────
+  async function boot() {
+    await injectSidebarHTML();
+    // Wait for the key element to be available after injection
+    let tries = 0;
+    while (!document.getElementById('rf-save-to-jd-btn') && tries < 50) {
+      await new Promise(r => setTimeout(r, 100));
+      tries++;
+    }
+    if (document.getElementById('rf-save-to-jd-btn')) {
+      init();
+    } else {
+      console.error('[RF] Sidebar HTML injection failed — key element not found');
+    }
   }
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', tryInit);
+    document.addEventListener('DOMContentLoaded', boot);
   } else {
-    tryInit();
+    boot();
   }
 })();
