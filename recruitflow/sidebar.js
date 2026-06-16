@@ -1927,6 +1927,10 @@
   // ── Listen for profile updates from content.js SPA navigation ────────────
   chrome.runtime.onMessage.addListener(msg => {
     if (msg.type === 'PROFILE_UPDATED') { updateProfileBanner(msg.profile); fillAndPreview(); }
+    if (msg.type === 'TOGGLE_SIDEBAR') {
+      const container = document.getElementById('recruitflow-sidebar-container');
+      if (container) container.classList.toggle('collapsed');
+    }
   });
 
   // ── Boot when sidebar HTML is in the DOM ─────────────────────────────────

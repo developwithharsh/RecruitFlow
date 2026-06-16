@@ -20,11 +20,11 @@ const DEFAULT_TEMPLATES = [
   }
 ];
 
-// ── Extension icon click → open side panel ────────────────────────────────
+// ── Extension icon click → toggle floating sidebar on LinkedIn ────────────
 chrome.action.onClicked.addListener(async (tab) => {
   if (!tab.url) return;
   if (tab.url.includes('linkedin.com')) {
-    await chrome.sidePanel.open({ tabId: tab.id });
+    chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_SIDEBAR' });
   } else {
     await chrome.tabs.update(tab.id, { url: 'https://www.linkedin.com/feed/' });
   }
