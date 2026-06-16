@@ -559,18 +559,14 @@
   }
 
   function rfScan() {
-    // Step 1: Clean up orphaned RF buttons.
-    // Use data-rf-done attribute check — NOT rfIsSend() — because rfIsSend()
-    // returns false for buttons with data-rf-done, which would wrongly delete RF.
+    // Step 1: Clean up orphaned RF buttons
     document.querySelectorAll('.rf-toolbar-btn').forEach(rf => {
       if (!rf.isConnected || !rf.parentNode) { rf.remove(); return; }
       const next = rf.nextElementSibling;
       if (!next || !next.getAttribute('data-rf-done')) rf.remove();
     });
 
-    // Step 2: Reset data-rf-done on Send buttons whose RF sibling was removed.
-    // Query [data-rf-done] directly — do NOT use rfIsSend() here because it
-    // returns false for buttons that have data-rf-done set.
+    // Step 2: Reset data-rf-done on Send buttons whose RF sibling was removed
     document.querySelectorAll('[data-rf-done]').forEach(btn => {
       const prev = btn.previousElementSibling;
       if (!prev || !prev.classList.contains('rf-toolbar-btn')) {
@@ -578,16 +574,28 @@
       }
     });
 
-    // Step 3: Inject RF next to every valid Send button.
-    // At this point data-rf-done is cleared on any button that lost its RF,
-    // so rfIsSend() will correctly find and match them again.
+    // Step 3: Primary — direct scan for LinkedIn's stable Send button class.
+    // This is the most reliable strategy and covers all 3 surfaces.
     const seenParents = new WeakSet();
-    document.querySelectorAll('button, [role="button"]').forEach(btn => {
+    document.querySelectorAll('.msg-form__send-button').forEach(btn => {
+      if (btn.getAttribute('data-rf-done')) return;
+      if (btn.classList.contains('rf-toolbar-btn')) return;
+      const parent = btn.parentNode;
+      if (!parent) return;
+      if (seenParents.has(parent)) return;
+      seenParents.add(parent);
+      rfInject(btn);
+    });
+
+    // Step 4: Fallback — general scan for any Send button not caught above
+    document.querySelectorAll('button[type="submit"], [role="button"]').forEach(btn => {
+      if (btn.getAttribute('data-rf-done')) return;
+      if (btn.classList.contains('rf-toolbar-btn')) return;
       if (!rfIsSend(btn)) return;
       if (!rfInMessagingCtx(btn)) return;
       const parent = btn.parentNode;
       if (!parent) return;
-      if (seenParents.has(parent)) return; // one RF per toolbar row
+      if (seenParents.has(parent)) return;
       seenParents.add(parent);
       rfInject(btn);
     });
