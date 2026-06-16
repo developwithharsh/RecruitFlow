@@ -416,188 +416,31 @@
   //  RF BUTTON — exactly one, immediately left of every LinkedIn Send button
   // ════════════════════════════════════════════════════════════════════════
 
-  function rfIsSend(b) {
-    if (!b) return false;
-    if (b.classList.contains('rf-toolbar-btn')) return false;
-    if (b.getAttribute('data-rf-done')) return false;
-
-    const text = (b.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
-    const aria = (b.getAttribute('aria-label') || '').toLowerCase().trim();
-    const cls  = (typeof b.className === 'string'
-      ? b.className
-      : (b.getAttribute('class') || '')).toLowerCase();
-    const dataControl = (b.getAttribute('data-control-name') || '').toLowerCase();
-    const type = (b.getAttribute('type') || '').toLowerCase();
-
-    // TEXT match
-    if (text === 'send' || text === 'send message') return true;
-
-    // ARIA match — covers all LinkedIn aria-label patterns
-    if (aria === 'send') return true;
-    if (aria === 'send message') return true;
-    if (aria.startsWith('send')) return true;
-
-    // CSS CLASS match — LinkedIn's stable class names
-    if (cls.includes('msg-form__send')) return true;
-    if (cls.includes('send-button') && cls.includes('msg')) return true;
-
-    // DATA-CONTROL-NAME match
-    if (dataControl === 'send' || dataControl === 'send_message') return true;
-
-    // TYPE=SUBMIT inside a messaging form
-    if (type === 'submit') {
-      let el = b.parentElement;
-      for (let i = 0; i < 20; i++) {
-        if (!el || el === document.body) break;
-        const c = (typeof el.className === 'string'
-          ? el.className
-          : (el.getAttribute('class') || '')).toLowerCase();
-        if (
-          c.includes('msg-form') ||
-          c.includes('msg-overlay') ||
-          c.includes('compose') ||
-          c.includes('messaging')
-        ) return true;
-        if (el.getAttribute('role') === 'dialog') return true;
-        el = el.parentElement;
-      }
-    }
-
-    // ICON-ONLY button (no text, has SVG) that is a sibling/child of msg-form
-    if (!text) {
-      const hasSvg = !!b.querySelector('svg');
-      if (hasSvg) {
-        let el = b.parentElement;
-        for (let i = 0; i < 15; i++) {
-          if (!el || el === document.body) break;
-          const c = (typeof el.className === 'string'
-            ? el.className
-            : (el.getAttribute('class') || '')).toLowerCase();
-          if (
-            c.includes('msg-form') ||
-            c.includes('msg-overlay') ||
-            c.includes('compose')
-          ) return true;
-          if (el.getAttribute('role') === 'dialog') return true;
-          el = el.parentElement;
-        }
-      }
-    }
-
-    return false;
-  }
-
-  function rfInMessagingCtx(btn) {
-    // Surface 1: Full messaging page — any Send button here is valid
-    if (window.location.href.includes('linkedin.com/messaging')) return true;
-
-    // Compose input selectors — covers all 3 LinkedIn chat surfaces
-    const COMPOSE_SELECTORS = [
-      '.msg-form__contenteditable',
-      '[contenteditable="true"]',
-      '[role="textbox"]',
-      '[aria-multiline="true"]',
-      'textarea',
-      '[data-placeholder]'
-    ];
-
-    // Walk UP the DOM from the Send button
-    let el = btn.parentElement;
-    for (let i = 0; i < 50; i++) {
-      if (!el || el === document.body) break;
-
-      // Check if this ancestor contains a compose input
-      for (const sel of COMPOSE_SELECTORS) {
-        try {
-          if (el.querySelector(sel)) return true;
-        } catch (_) {}
-      }
-
-      // Check ancestor class names for LinkedIn messaging containers
-      const c = (typeof el.className === 'string'
-        ? el.className
-        : (el.getAttribute('class') || '')).toLowerCase();
-
-      if (c.includes('msg-form')) return true;
-      if (c.includes('msg-overlay')) return true;
-      if (c.includes('msg-convo')) return true;
-      if (c.includes('msg-thread')) return true;
-      if (c.includes('msg-compose')) return true;
-      if (c.includes('messaging')) return true;
-      if (c.includes('compose')) return true;
-
-      // Dialog role = New message modal (Surface 3)
-      const role = (el.getAttribute('role') || '').toLowerCase();
-      if (role === 'dialog') return true;
-
-      el = el.parentElement;
-    }
-
-    return false;
-  }
-
-  function rfInject(sendBtn) {
-    if (!sendBtn || !sendBtn.parentNode) return;
-    if (sendBtn.getAttribute('data-rf-done')) return;
-
-    // Check if RF button already exists immediately before this Send button
-    const prev = sendBtn.previousElementSibling;
-    if (prev && prev.classList.contains('rf-toolbar-btn')) {
-      sendBtn.setAttribute('data-rf-done', '1');
-      return;
-    }
-
-    sendBtn.setAttribute('data-rf-done', '1');
-
-    try {
-      const rfBtn = createRFBtn();
-      sendBtn.parentNode.insertBefore(rfBtn, sendBtn);
-    } catch (e) {
-      // Parent removed by LinkedIn re-render — reset flag so next scan can retry
-      sendBtn.removeAttribute('data-rf-done');
-    }
-  }
+  // ════════════════════════════════════════════════════════════════════════
+  //  RF BUTTON — one immediately left of every LinkedIn Send button
+  // ════════════════════════════════════════════════════════════════════════
 
   function rfScan() {
-    // Step 1: Clean up orphaned RF buttons
+    // Step 1: Remove RF buttons not immediately left of a msg-form__send-button
     document.querySelectorAll('.rf-toolbar-btn').forEach(rf => {
-      if (!rf.isConnected || !rf.parentNode) { rf.remove(); return; }
+      if (!rf.isConnected) { rf.remove(); return; }
       const next = rf.nextElementSibling;
-      if (!next || !next.getAttribute('data-rf-done')) rf.remove();
+      if (!next || !next.classList.contains('msg-form__send-button')) rf.remove();
     });
 
-    // Step 2: Reset data-rf-done on Send buttons whose RF sibling was removed
-    document.querySelectorAll('[data-rf-done]').forEach(btn => {
-      const prev = btn.previousElementSibling;
-      if (!prev || !prev.classList.contains('rf-toolbar-btn')) {
-        btn.removeAttribute('data-rf-done');
-      }
-    });
-
-    // Step 3: Primary — direct scan for LinkedIn's stable Send button class.
-    // This is the most reliable strategy and covers all 3 surfaces.
+    // Step 2: Inject RF immediately before every .msg-form__send-button that lacks one
     const seenParents = new WeakSet();
     document.querySelectorAll('.msg-form__send-button').forEach(btn => {
-      if (btn.getAttribute('data-rf-done')) return;
-      if (btn.classList.contains('rf-toolbar-btn')) return;
-      const parent = btn.parentNode;
-      if (!parent) return;
-      if (seenParents.has(parent)) return;
-      seenParents.add(parent);
-      rfInject(btn);
-    });
+      if (!btn.parentNode) return;
+      if (seenParents.has(btn.parentNode)) return; // one RF per toolbar row
+      seenParents.add(btn.parentNode);
 
-    // Step 4: Fallback — general scan for any Send button not caught above
-    document.querySelectorAll('button[type="submit"], [role="button"]').forEach(btn => {
-      if (btn.getAttribute('data-rf-done')) return;
-      if (btn.classList.contains('rf-toolbar-btn')) return;
-      if (!rfIsSend(btn)) return;
-      if (!rfInMessagingCtx(btn)) return;
-      const parent = btn.parentNode;
-      if (!parent) return;
-      if (seenParents.has(parent)) return;
-      seenParents.add(parent);
-      rfInject(btn);
+      const prev = btn.previousElementSibling;
+      if (prev && prev.classList.contains('rf-toolbar-btn')) return; // already there
+
+      try {
+        btn.parentNode.insertBefore(createRFBtn(), btn);
+      } catch (_) {}
     });
   }
 
