@@ -420,27 +420,58 @@
   //  RF BUTTON — one immediately left of every LinkedIn Send button
   // ════════════════════════════════════════════════════════════════════════
 
+  // Detect LinkedIn's Send button — confirmed class from DevTools + aria fallbacks
+  function rfFindSendButtons() {
+    const found = new Set();
+
+    // Primary: LinkedIn's stable class (confirmed from DevTools)
+    document.querySelectorAll('.msg-form__send-button').forEach(b => found.add(b));
+
+    // Fallback: aria-label="Send" inside a messaging container
+    document.querySelectorAll('button[aria-label="Send"], button[aria-label="send"]').forEach(b => {
+      if (found.has(b)) return;
+      if (b.classList.contains('rf-toolbar-btn')) return;
+      // Verify it's inside a messaging compose area
+      let el = b.parentElement;
+      for (let i = 0; i < 20; i++) {
+        if (!el || el === document.body) break;
+        const c = (el.className || '').toString().toLowerCase();
+        if (c.includes('msg-form') || c.includes('msg-overlay') || c.includes('msg-convo') || c.includes('msg-thread')) { found.add(b); break; }
+        if (el.getAttribute('role') === 'dialog') { found.add(b); break; }
+        el = el.parentElement;
+      }
+    });
+
+    // Fallback: text content "Send" inside msg-form
+    document.querySelectorAll('.msg-form button, .msg-overlay-bubble button').forEach(b => {
+      if (found.has(b)) return;
+      if (b.classList.contains('rf-toolbar-btn')) return;
+      const text = (b.textContent || '').trim().toLowerCase();
+      if (text === 'send') found.add(b);
+    });
+
+    return found;
+  }
+
   function rfScan() {
-    // Step 1: Remove RF buttons not immediately left of a msg-form__send-button
+    const sendBtns = rfFindSendButtons();
+
+    // Step 1: Remove RF buttons not immediately left of a known Send button
     document.querySelectorAll('.rf-toolbar-btn').forEach(rf => {
       if (!rf.isConnected) { rf.remove(); return; }
       const next = rf.nextElementSibling;
-      if (!next || !next.classList.contains('msg-form__send-button')) rf.remove();
+      if (!next || !sendBtns.has(next)) rf.remove();
     });
 
-    // Step 2: Inject RF immediately before every .msg-form__send-button that lacks one
+    // Step 2: Inject RF immediately before every Send button that lacks one
     const seenParents = new WeakSet();
-    document.querySelectorAll('.msg-form__send-button').forEach(btn => {
+    sendBtns.forEach(btn => {
       if (!btn.parentNode) return;
       if (seenParents.has(btn.parentNode)) return; // one RF per toolbar row
       seenParents.add(btn.parentNode);
-
       const prev = btn.previousElementSibling;
       if (prev && prev.classList.contains('rf-toolbar-btn')) return; // already there
-
-      try {
-        btn.parentNode.insertBefore(createRFBtn(), btn);
-      } catch (_) {}
+      try { btn.parentNode.insertBefore(createRFBtn(), btn); } catch (_) {}
     });
   }
 

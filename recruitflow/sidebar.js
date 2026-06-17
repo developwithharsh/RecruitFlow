@@ -1929,7 +1929,7 @@
     if (msg.type === 'PROFILE_UPDATED') { updateProfileBanner(msg.profile); fillAndPreview(); }
     if (msg.type === 'TOGGLE_SIDEBAR') {
       const container = document.getElementById('recruitflow-sidebar-container');
-      if (container) container.classList.toggle('collapsed');
+      if (container) container.classList.remove('collapsed'); // icon click always opens
     }
   });
 
