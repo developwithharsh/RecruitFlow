@@ -450,27 +450,59 @@
     return found;
   }
 
+  // Find the best container + reference node for inserting RF next to Send.
+  // LinkedIn wraps the Send button in an extra <div> inside a flex container:
+  //   div.msg-form__right-actions.display-flex   ← FLEX ROW
+  //     div                                       ← wrapper (no class)
+  //       button.msg-form__send-button            ← Send
+  //     div.relative.ml2                          ← "..." button
+  // We must insert RF into the FLEX ROW before the wrapper, not inside the wrapper.
+  function rfGetInsertPoint(sendBtn) {
+    const wrapper = sendBtn.parentNode;
+    if (!wrapper) return null;
+    const flexRow = wrapper.parentNode;
+    if (!flexRow) return { container: wrapper, before: sendBtn };
+
+    const fc = (flexRow.className || '').toString();
+    // If the flex row is LinkedIn's right-actions bar (or any display-flex), use it
+    if (fc.includes('display-flex') || fc.includes('msg-form__right-actions') ||
+        fc.includes('flex') || getComputedStyle(flexRow).display.includes('flex')) {
+      return { container: flexRow, before: wrapper };
+    }
+    return { container: wrapper, before: sendBtn };
+  }
+
   function rfScan() {
     const sendBtns = rfFindSendButtons();
 
-    // Step 1: Remove RF buttons not immediately left of a known Send button
+    // Step 1: Remove RF buttons that are no longer next to a Send button.
+    // RF may sit before the wrapper div OR before the button itself — check both.
     document.querySelectorAll('.rf-toolbar-btn').forEach(rf => {
       if (!rf.isConnected) { rf.remove(); return; }
       const next = rf.nextElementSibling;
-      if (!next || !sendBtns.has(next)) rf.remove();
+      if (!next) { rf.remove(); return; }
+      // Valid if next IS a send button, or next CONTAINS a send button
+      const valid = sendBtns.has(next) ||
+        (next.querySelector && [...sendBtns].some(b => next.contains(b)));
+      if (!valid) rf.remove();
     });
 
-    // Step 2: Inject RF immediately before every Send button that lacks one.
-    // seenParents prevents two RFs in the same toolbar row.
-    const seenParents = new WeakSet();
+    // Step 2: Inject RF next to every Send button that lacks one.
+    const seenContainers = new WeakSet();
     sendBtns.forEach(btn => {
       if (!btn.isConnected || !btn.parentNode) return;
-      if (seenParents.has(btn.parentNode)) return;
-      seenParents.add(btn.parentNode);
-      // Skip if RF already immediately before this button
-      const prev = btn.previousElementSibling;
+
+      const ip = rfGetInsertPoint(btn);
+      if (!ip) return;
+
+      if (seenContainers.has(ip.container)) return;
+      seenContainers.add(ip.container);
+
+      // Skip if RF already immediately before the insertion target
+      const prev = ip.before.previousElementSibling;
       if (prev && prev.classList.contains('rf-toolbar-btn')) return;
-      try { btn.parentNode.insertBefore(createRFBtn(), btn); } catch (_) {}
+
+      try { ip.container.insertBefore(createRFBtn(), ip.before); } catch (_) {}
     });
   }
 
@@ -531,7 +563,7 @@
   try { const _p = history.pushState.bind(history);    history.pushState    = function(...a){_p(...a);rfBurst();}; } catch(_){}
   try { const _r = history.replaceState.bind(history); history.replaceState = function(...a){_r(...a);rfBurst();}; } catch(_){}
 
-  console.log('[RF] v15 ready');
+  console.log('[RF] v18 ready — rfGetInsertPoint flex-row injection');
 
 })();
 
