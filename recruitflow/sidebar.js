@@ -707,6 +707,7 @@
       ? `${profile.role}${profile.company ? ' @ ' + profile.company : ''}` : '';
     if (locEl)  locEl.textContent  = profile.location || '';
     if (hdrEl)  hdrEl.textContent  = (profile.name || '').split(' ')[0];
+    refreshQuickSend();
   }
 
   // ── Template / JD selects ────────────────────────────────────────────────
@@ -957,6 +958,126 @@
     document.getElementById('rf-optimized-section').style.display = 'none';
     const lbl = document.querySelector('#rf-jd-form-section label.rf-label');
     if (lbl) lbl.textContent = 'New Job Description';
+  }
+
+  // ── Quick Send to Profile ─────────────────────────────────────────────────
+
+  function _buildQuickSendMsg(jd, settings) {
+    const firstName = ((currentProfile && currentProfile.name) || 'there').split(' ')[0];
+    const jdTitle   = (jd && jd.title) || 'an exciting opportunity';
+    const rName     = (settings && settings.recruiter_name)    || '';
+    const rCompany  = (settings && settings.recruiter_company) || '';
+    return `Hi ${firstName},\n\nI came across your profile and wanted to reach out about a ${jdTitle} role that I think could be a great fit for you.\n\nWould you be open to a quick 10-minute call this week?\n\nBest regards,\n${rName}${rCompany ? ', ' + rCompany : ''}`;
+  }
+
+  async function _updateQSPreview() {
+    const jdSel  = document.getElementById('rf-qs-jd');
+    const preview = document.getElementById('rf-qs-preview');
+    if (!jdSel || !preview) return;
+    const [jds, settings] = await Promise.all([getAllJDs(), storageGet('recruitflow_settings')]);
+    const jd = jds.find(j => j.id === jdSel.value) || jds[0];
+    if (!jd) return;
+    preview.value = jd.savedMessage || _buildQuickSendMsg(jd, settings || {});
+  }
+
+  async function refreshQuickSend() {
+    const section = document.getElementById('rf-quick-send');
+    if (!section) return;
+    const isProfile = /linkedin\.com\/in\//.test(window.location.href);
+    if (!isProfile) { section.style.display = 'none'; return; }
+    section.style.display = '';
+
+    const recipEl = document.getElementById('rf-qs-recipient');
+    if (recipEl) recipEl.textContent = currentProfile && currentProfile.name ? `to ${currentProfile.name}` : 'to this profile';
+
+    const jdSel  = document.getElementById('rf-qs-jd');
+    const noJdEl = document.getElementById('rf-qs-no-jd');
+    const sendBtn = document.getElementById('rf-qs-send-btn');
+    if (!jdSel) return;
+
+    const [jds, activeId] = await Promise.all([getAllJDs(), storageGet('recruitflow_active_jd')]);
+    if (!jds.length) {
+      jdSel.style.display   = 'none';
+      if (noJdEl)  noJdEl.style.display  = '';
+      if (sendBtn) sendBtn.style.display = 'none';
+      return;
+    }
+
+    jdSel.style.display   = '';
+    if (noJdEl)  noJdEl.style.display  = 'none';
+    if (sendBtn) sendBtn.style.display = '';
+
+    jdSel.innerHTML = jds.map(jd =>
+      `<option value="${jd.id}" ${jd.id === activeId ? 'selected' : ''}>${jd.title || 'Untitled'}</option>`
+    ).join('');
+
+    await _updateQSPreview();
+  }
+
+  function wireQuickSend() {
+    document.getElementById('rf-qs-jd')?.addEventListener('change', async () => {
+      const jdSel = document.getElementById('rf-qs-jd');
+      if (jdSel) await storageSet({ recruitflow_active_jd: jdSel.value });
+      await _updateQSPreview();
+    });
+
+    document.getElementById('rf-qs-send-btn')?.addEventListener('click', async () => {
+      const preview = document.getElementById('rf-qs-preview');
+      const text    = (preview?.value || '').trim();
+      if (!text) { showToast('No message to send', 'warning'); return; }
+
+      const limitStatus = await getLimitStatus();
+      if (limitStatus.blocked) {
+        showToast(limitStatus.isPro ? 'Daily limit reached' : 'Free limit reached — upgrade to send more', 'error');
+        showUpgradeOverlay();
+        return;
+      }
+
+      const btn = document.getElementById('rf-qs-send-btn');
+      const origHTML = btn.innerHTML;
+      btn.disabled = true;
+      btn.textContent = 'Sending…';
+      btn.style.color = '#64748B';
+
+      try {
+        await sendLinkedInMessage(text);
+
+        const jdSel = document.getElementById('rf-qs-jd');
+        const jds   = await getAllJDs();
+        const jd    = jds.find(j => j.id === jdSel?.value) || jds[0];
+
+        await addEntry({
+          candidateName:    (currentProfile && currentProfile.name)     || 'LinkedIn contact',
+          candidateUrl:     (currentProfile && currentProfile.profileUrl) || window.location.href,
+          candidateRole:    (currentProfile && currentProfile.role)     || '',
+          candidateCompany: (currentProfile && currentProfile.company)  || '',
+          jdTitle:          (jd && jd.title) || '',
+          messageSent:      text,
+          sentAt:           new Date().toISOString()
+        });
+
+        await incrementMessageCount();
+        await refreshLimitBar();
+
+        btn.textContent = '✓ Sent!';
+        btn.style.color = '#059669';
+        btn.style.background = '#F0FDF4';
+        showToast(`Message sent to ${(currentProfile && currentProfile.name) || 'candidate'}!`, 'success');
+
+        setTimeout(() => {
+          btn.innerHTML = origHTML;
+          btn.style.color = '#1E40AF';
+          btn.style.background = '#fff';
+          btn.disabled = false;
+        }, 3000);
+      } catch (e) {
+        btn.innerHTML = origHTML;
+        btn.style.color = '#1E40AF';
+        btn.style.background = '#fff';
+        btn.disabled = false;
+        showToast(e.message || 'Could not send message', 'error');
+      }
+    });
   }
 
   function wireJDTab() {
@@ -1696,6 +1817,7 @@
     wireTrackerTab();
     wireSettingsTab();
     wireSearchTab();
+    wireQuickSend();
 
     await Promise.all([
       renderJDCards(),
@@ -1709,6 +1831,7 @@
     currentProfile = readProfileFromDOM();
     updateProfileBanner(currentProfile);
     await fillAndPreview();
+    await refreshQuickSend();
 
     // Show JD tab first if no JDs saved yet, otherwise Message tab
     const jds = (await storageGet('recruitflow_jds')) || [];
