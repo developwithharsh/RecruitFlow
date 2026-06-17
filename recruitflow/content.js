@@ -420,32 +420,32 @@
   //  RF BUTTON — one immediately left of every LinkedIn Send button
   // ════════════════════════════════════════════════════════════════════════
 
-  // Detect LinkedIn's Send button across all 3 surfaces
+  // Returns true if btn is LinkedIn's Send button
+  function rfIsSendBtn(btn) {
+    if (!btn || btn.classList.contains('rf-toolbar-btn')) return false;
+    const cls  = (btn.className || '').toString().toLowerCase();
+    const aria = (btn.getAttribute('aria-label') || '').toLowerCase().trim();
+    const text = (btn.textContent || '').replace(/\s+/g,' ').trim().toLowerCase();
+    return cls.includes('msg-form__send') ||
+           aria === 'send' ||
+           aria === 'send message' ||
+           text === 'send';
+  }
+
+  // Collect every LinkedIn Send button currently in the DOM (no duplicates)
   function rfFindSendButtons() {
     const found = new Set();
 
-    function addIfSend(b) {
-      if (!b || found.has(b)) return;
-      if (b.classList.contains('rf-toolbar-btn')) return;
-      const text = (b.textContent || '').replace(/\s+/g,' ').trim().toLowerCase();
-      const aria = (b.getAttribute('aria-label') || '').toLowerCase().trim();
-      const cls  = (b.className || '').toString().toLowerCase();
-      if (text === 'send' || aria === 'send' || aria === 'send message' || cls.includes('msg-form__send')) {
-        found.add(b);
-      }
-    }
-
-    // Surface 1: Messaging thread (linkedin.com/messaging/*)
-    document.querySelectorAll('.msg-form__send-button').forEach(addIfSend);
-
-    // Surface 2: Feed overlay chat bubble
-    document.querySelectorAll('.msg-overlay-bubble button, .msg-overlay-list-bubble button').forEach(addIfSend);
-
-    // Surface 3: New message modal / any dialog
-    document.querySelectorAll('[role="dialog"] button').forEach(addIfSend);
-
-    // Surface 4: Any remaining msg-form context
-    document.querySelectorAll('[class*="msg-form"] button, [class*="msg-convo"] button').forEach(addIfSend);
+    // Use a single broad query then filter — avoids double-counting from
+    // overlapping container selectors
+    document.querySelectorAll(
+      '.msg-form__send-button,' +           // messaging thread (confirmed class)
+      '.msg-overlay-bubble button,' +        // feed overlay chat
+      '[role="dialog"] button[type="submit"],' + // new message modal (type=submit)
+      '[role="dialog"] button'               // new message modal (any)
+    ).forEach(btn => {
+      if (!found.has(btn) && rfIsSendBtn(btn)) found.add(btn);
+    });
 
     return found;
   }
@@ -460,14 +460,16 @@
       if (!next || !sendBtns.has(next)) rf.remove();
     });
 
-    // Step 2: Inject RF immediately before every Send button that lacks one
+    // Step 2: Inject RF immediately before every Send button that lacks one.
+    // seenParents prevents two RFs in the same toolbar row.
     const seenParents = new WeakSet();
     sendBtns.forEach(btn => {
-      if (!btn.parentNode) return;
-      if (seenParents.has(btn.parentNode)) return; // one RF per toolbar row
+      if (!btn.isConnected || !btn.parentNode) return;
+      if (seenParents.has(btn.parentNode)) return;
       seenParents.add(btn.parentNode);
+      // Skip if RF already immediately before this button
       const prev = btn.previousElementSibling;
-      if (prev && prev.classList.contains('rf-toolbar-btn')) return; // already there
+      if (prev && prev.classList.contains('rf-toolbar-btn')) return;
       try { btn.parentNode.insertBefore(createRFBtn(), btn); } catch (_) {}
     });
   }
