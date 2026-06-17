@@ -987,34 +987,46 @@
     if (!isProfile) { section.style.display = 'none'; return; }
     section.style.display = '';
 
-    const recipEl = document.getElementById('rf-qs-recipient');
-    if (recipEl) recipEl.textContent = currentProfile && currentProfile.name ? `to ${currentProfile.name}` : 'to this profile';
+    // Update candidate avatar + name
+    const avatarEl = document.getElementById('rf-qs-avatar');
+    const nameEl   = document.getElementById('rf-qs-name');
+    const roleEl   = document.getElementById('rf-qs-role');
+    const labelEl  = document.getElementById('rf-qs-send-label');
+    const firstName = currentProfile && currentProfile.name ? currentProfile.name.split(' ')[0] : '';
+    if (avatarEl) avatarEl.textContent = firstName ? firstName[0].toUpperCase() : '?';
+    if (nameEl)   nameEl.textContent   = (currentProfile && currentProfile.name) || 'Detecting profile…';
+    if (roleEl)   roleEl.textContent   = currentProfile && currentProfile.role
+      ? `${currentProfile.role}${currentProfile.company ? ' @ ' + currentProfile.company : ''}`
+      : '';
+    if (labelEl && firstName) labelEl.textContent = `Send to ${firstName}`;
 
-    const jdSel  = document.getElementById('rf-qs-jd');
-    const noJdEl = document.getElementById('rf-qs-no-jd');
-    const sendBtn = document.getElementById('rf-qs-send-btn');
-    if (!jdSel) return;
+    const noJdEl  = document.getElementById('rf-qs-no-jd');
+    const formEl  = document.getElementById('rf-qs-form');
+    const jdSel   = document.getElementById('rf-qs-jd');
 
     const [jds, activeId] = await Promise.all([getAllJDs(), storageGet('recruitflow_active_jd')]);
     if (!jds.length) {
-      jdSel.style.display   = 'none';
-      if (noJdEl)  noJdEl.style.display  = '';
-      if (sendBtn) sendBtn.style.display = 'none';
+      if (noJdEl) noJdEl.style.display = '';
+      if (formEl) formEl.style.display = 'none';
       return;
     }
 
-    jdSel.style.display   = '';
-    if (noJdEl)  noJdEl.style.display  = 'none';
-    if (sendBtn) sendBtn.style.display = '';
+    if (noJdEl) noJdEl.style.display = 'none';
+    if (formEl) formEl.style.display = '';
 
-    jdSel.innerHTML = jds.map(jd =>
-      `<option value="${jd.id}" ${jd.id === activeId ? 'selected' : ''}>${jd.title || 'Untitled'}</option>`
-    ).join('');
+    if (jdSel) {
+      jdSel.innerHTML = jds.map(jd =>
+        `<option value="${jd.id}" ${jd.id === activeId ? 'selected' : ''}>${jd.title || 'Untitled'}</option>`
+      ).join('');
+    }
 
     await _updateQSPreview();
   }
 
   function wireQuickSend() {
+    // "Add Job Description" button in empty state → switch to JD tab
+    document.getElementById('rf-qs-goto-jd')?.addEventListener('click', () => switchTab('jd'));
+
     document.getElementById('rf-qs-jd')?.addEventListener('change', async () => {
       const jdSel = document.getElementById('rf-qs-jd');
       if (jdSel) await storageSet({ recruitflow_active_jd: jdSel.value });
@@ -1033,11 +1045,12 @@
         return;
       }
 
-      const btn = document.getElementById('rf-qs-send-btn');
-      const origHTML = btn.innerHTML;
+      const btn      = document.getElementById('rf-qs-send-btn');
+      const labelEl2 = document.getElementById('rf-qs-send-label');
+      const origLabel = labelEl2 ? labelEl2.textContent : 'Send Message Now';
       btn.disabled = true;
-      btn.textContent = 'Sending…';
-      btn.style.color = '#64748B';
+      btn.style.opacity = '.7';
+      if (labelEl2) labelEl2.textContent = 'Sending…';
 
       try {
         await sendLinkedInMessage(text);
@@ -1047,10 +1060,10 @@
         const jd    = jds.find(j => j.id === jdSel?.value) || jds[0];
 
         await addEntry({
-          candidateName:    (currentProfile && currentProfile.name)     || 'LinkedIn contact',
+          candidateName:    (currentProfile && currentProfile.name)      || 'LinkedIn contact',
           candidateUrl:     (currentProfile && currentProfile.profileUrl) || window.location.href,
-          candidateRole:    (currentProfile && currentProfile.role)     || '',
-          candidateCompany: (currentProfile && currentProfile.company)  || '',
+          candidateRole:    (currentProfile && currentProfile.role)      || '',
+          candidateCompany: (currentProfile && currentProfile.company)   || '',
           jdTitle:          (jd && jd.title) || '',
           messageSent:      text,
           sentAt:           new Date().toISOString()
@@ -1059,21 +1072,20 @@
         await incrementMessageCount();
         await refreshLimitBar();
 
-        btn.textContent = '✓ Sent!';
-        btn.style.color = '#059669';
-        btn.style.background = '#F0FDF4';
+        btn.style.background = 'linear-gradient(135deg,#059669,#10B981)';
+        btn.style.opacity    = '1';
+        if (labelEl2) labelEl2.textContent = '✓ Message Sent!';
         showToast(`Message sent to ${(currentProfile && currentProfile.name) || 'candidate'}!`, 'success');
 
         setTimeout(() => {
-          btn.innerHTML = origHTML;
-          btn.style.color = '#1E40AF';
-          btn.style.background = '#fff';
+          if (labelEl2) labelEl2.textContent = origLabel;
+          btn.style.background = 'linear-gradient(135deg,#059669,#10B981)';
+          btn.style.opacity    = '1';
           btn.disabled = false;
         }, 3000);
       } catch (e) {
-        btn.innerHTML = origHTML;
-        btn.style.color = '#1E40AF';
-        btn.style.background = '#fff';
+        if (labelEl2) labelEl2.textContent = origLabel;
+        btn.style.opacity = '1';
         btn.disabled = false;
         showToast(e.message || 'Could not send message', 'error');
       }
