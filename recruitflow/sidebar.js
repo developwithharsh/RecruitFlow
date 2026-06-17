@@ -716,7 +716,6 @@
       ? `${profile.role}${profile.company ? ' @ ' + profile.company : ''}` : '';
     if (locEl)  locEl.textContent  = profile.location || '';
     if (hdrEl)  hdrEl.textContent  = (profile.name || '').split(' ')[0];
-    refreshQuickSend();
   }
 
   // ── Template / JD selects ────────────────────────────────────────────────
@@ -969,14 +968,13 @@
     if (lbl) lbl.textContent = 'New Job Description';
   }
 
-  // ── Quick Send to Profile ─────────────────────────────────────────────────
+  // ── Quick Send — new message compose flow ────────────────────────────────
 
   function _buildQuickSendMsg(jd, settings) {
-    const firstName = ((currentProfile && currentProfile.name) || 'there').split(' ')[0];
-    const jdTitle   = (jd && jd.title) || 'an exciting opportunity';
-    const rName     = (settings && settings.recruiter_name)    || '';
-    const rCompany  = (settings && settings.recruiter_company) || '';
-    return `Hi ${firstName},\n\nI came across your profile and wanted to reach out about a ${jdTitle} role that I think could be a great fit for you.\n\nWould you be open to a quick 10-minute call this week?\n\nBest regards,\n${rName}${rCompany ? ', ' + rCompany : ''}`;
+    const jdTitle  = (jd && jd.title) || 'an exciting opportunity';
+    const rName    = (settings && settings.recruiter_name)    || '';
+    const rCompany = (settings && settings.recruiter_company) || '';
+    return `Hi,\n\nI came across your profile and wanted to reach out about a ${jdTitle} role that I think could be a great fit for you.\n\nWould you be open to a quick 10-minute call this week?\n\nBest regards,\n${rName}${rCompany ? ', ' + rCompany : ''}`;
   }
 
   async function _updateQSPreview() {
@@ -989,29 +987,46 @@
     preview.value = jd.savedMessage || _buildQuickSendMsg(jd, settings || {});
   }
 
+  async function openNewMessageCompose(text) {
+    // Try LinkedIn's compose/pencil button (messaging panel or floating bubble)
+    const composeBtn =
+      document.querySelector('button[aria-label="Compose a new message"]') ||
+      document.querySelector('button[aria-label="New message"]') ||
+      document.querySelector('.msg-chrome-compose-btn') ||
+      document.querySelector('.msg-overlay-bubble-header__button[aria-label*="ompose"]') ||
+      Array.from(document.querySelectorAll('button')).find(b => {
+        const lbl = (b.getAttribute('aria-label') || b.innerText || '').toLowerCase().trim();
+        return lbl === 'compose' || lbl === 'new message' || lbl.includes('compose a new');
+      });
+
+    if (composeBtn) {
+      composeBtn.scrollIntoView({ block: 'center' });
+      await sleep(300);
+      composeBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+
+      // Wait for composer textarea to appear
+      const before = snapshotInputs();
+      const composer = await waitForNewComposer(before, 8000);
+      if (composer) {
+        await sleep(400);
+        typeIntoElement(composer, text);
+        showToast('Message ready! Type the recipient\'s name and press Send.', 'success');
+        return;
+      }
+    }
+
+    // Fallback: copy to clipboard and guide user
+    await copyToClipboard(text);
+    showToast('Message copied! Open LinkedIn messaging → click Compose → paste (Ctrl+V) → pick recipient.', 'warning');
+  }
+
   async function refreshQuickSend() {
     const section = document.getElementById('rf-quick-send');
     if (!section) return;
-    const isProfile = /linkedin\.com\/in\//.test(window.location.href);
-    if (!isProfile) { section.style.display = 'none'; return; }
-    section.style.display = '';
 
-    // Update candidate avatar + name
-    const avatarEl = document.getElementById('rf-qs-avatar');
-    const nameEl   = document.getElementById('rf-qs-name');
-    const roleEl   = document.getElementById('rf-qs-role');
-    const labelEl  = document.getElementById('rf-qs-send-label');
-    const firstName = currentProfile && currentProfile.name ? currentProfile.name.split(' ')[0] : '';
-    if (avatarEl) avatarEl.textContent = firstName ? firstName[0].toUpperCase() : '?';
-    if (nameEl)   nameEl.textContent   = (currentProfile && currentProfile.name) || 'Detecting profile…';
-    if (roleEl)   roleEl.textContent   = currentProfile && currentProfile.role
-      ? `${currentProfile.role}${currentProfile.company ? ' @ ' + currentProfile.company : ''}`
-      : '';
-    if (labelEl && firstName) labelEl.textContent = `Send to ${firstName}`;
-
-    const noJdEl  = document.getElementById('rf-qs-no-jd');
-    const formEl  = document.getElementById('rf-qs-form');
-    const jdSel   = document.getElementById('rf-qs-jd');
+    const noJdEl = document.getElementById('rf-qs-no-jd');
+    const formEl = document.getElementById('rf-qs-form');
+    const jdSel  = document.getElementById('rf-qs-jd');
 
     const [jds, activeId] = await Promise.all([getAllJDs(), storageGet('recruitflow_active_jd')]);
     if (!jds.length) {
@@ -1033,7 +1048,6 @@
   }
 
   function wireQuickSend() {
-    // "Add Job Description" button in empty state → switch to JD tab
     document.getElementById('rf-qs-goto-jd')?.addEventListener('click', () => switchTab('jd'));
 
     document.getElementById('rf-qs-jd')?.addEventListener('change', async () => {
@@ -1056,39 +1070,28 @@
 
       const btn      = document.getElementById('rf-qs-send-btn');
       const labelEl2 = document.getElementById('rf-qs-send-label');
-      const origLabel = labelEl2 ? labelEl2.textContent : 'Send Message Now';
+      const origLabel = labelEl2 ? labelEl2.textContent : 'Open New Message';
       btn.disabled = true;
       btn.style.opacity = '.7';
-      if (labelEl2) labelEl2.textContent = 'Sending…';
+      if (labelEl2) labelEl2.textContent = 'Opening…';
 
       try {
-        await sendLinkedInMessage(text);
+        await openNewMessageCompose(text);
 
         const jdSel = document.getElementById('rf-qs-jd');
         const jds   = await getAllJDs();
         const jd    = jds.find(j => j.id === jdSel?.value) || jds[0];
-
-        await addEntry({
-          candidateName:    (currentProfile && currentProfile.name)      || 'LinkedIn contact',
-          candidateUrl:     (currentProfile && currentProfile.profileUrl) || window.location.href,
-          candidateRole:    (currentProfile && currentProfile.role)      || '',
-          candidateCompany: (currentProfile && currentProfile.company)   || '',
-          jdTitle:          (jd && jd.title) || '',
-          messageSent:      text,
-          sentAt:           new Date().toISOString()
-        });
 
         await incrementMessageCount();
         await refreshLimitBar();
 
         btn.style.background = 'linear-gradient(135deg,#059669,#10B981)';
         btn.style.opacity    = '1';
-        if (labelEl2) labelEl2.textContent = '✓ Message Sent!';
-        showToast(`Message sent to ${(currentProfile && currentProfile.name) || 'candidate'}!`, 'success');
+        if (labelEl2) labelEl2.textContent = '✓ Compose Opened!';
 
         setTimeout(() => {
           if (labelEl2) labelEl2.textContent = origLabel;
-          btn.style.background = 'linear-gradient(135deg,#059669,#10B981)';
+          btn.style.background = 'linear-gradient(135deg,#2563EB,#7C3AED)';
           btn.style.opacity    = '1';
           btn.disabled = false;
         }, 3000);
