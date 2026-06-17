@@ -6,6 +6,15 @@
 (function () {
   'use strict';
 
+  // Singleton guard — same reason as content.js: each extension reload injects
+  // another copy while the old one keeps running.  Multiple boot() calls would
+  // wire duplicate event listeners and break the UI.
+  if (window._rfSidebarLoaded) {
+    console.log('[RF sidebar] duplicate — exiting');
+    return;
+  }
+  window._rfSidebarLoaded = true;
+
   // ── Storage helpers ──────────────────────────────────────────────────────
   async function storageGet(key) {
     return new Promise(resolve => chrome.storage.local.get(key, d => resolve(d[key])));
