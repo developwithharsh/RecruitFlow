@@ -1,6 +1,15 @@
 (function () {
   'use strict';
 
+  // Singleton guard — prevents multiple copies from running when the extension
+  // is reloaded without closing the tab (each reload injects a fresh script that
+  // would race/conflict with the previous one).
+  if (window._rfContentScriptLoaded) {
+    console.log('[RF] duplicate script detected — exiting');
+    return;
+  }
+  window._rfContentScriptLoaded = true;
+
   // ── Profile reading ───────────────────────────────────────────────────────
   function getFirst(selectors) {
     for (const s of selectors) {
@@ -420,98 +429,100 @@
   //  RF BUTTON — one immediately left of every LinkedIn Send button
   // ════════════════════════════════════════════════════════════════════════
 
-  // True if btn is LinkedIn's Send button.
-  // No visibility/isConnected checks — those cause false negatives on disabled/
-  // not-yet-laid-out buttons. Pure attribute matching only.
+  // ── RF button injection ──────────────────────────────────────────────────
+
+  // True if btn is a LinkedIn Send button (pure attribute matching, no DOM layout checks)
   function rfIsSendBtn(btn) {
     if (!btn || btn.tagName !== 'BUTTON') return false;
     if (btn.classList.contains('rf-toolbar-btn')) return false;
     const cls  = (btn.className || '').toString();
     const aria = (btn.getAttribute('aria-label') || '').toLowerCase().trim();
+    // textContent may include SVG title text so use endsWith not ===
     const text = (btn.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
     return cls.includes('msg-form__send') ||
            aria === 'send' ||
            aria === 'send message' ||
-           text === 'send';
+           text === 'send' ||
+           text.endsWith(' send');
   }
 
-  // Collect every LinkedIn Send button in the DOM.
-  // First add by direct class (always reliable for messaging thread),
-  // then scan all buttons so we catch overlay chat + new-message modal
-  // regardless of their container class.
-  function rfFindSendButtons() {
-    const found = new Set();
-    // Direct class — most reliable, catches disabled state too
-    document.querySelectorAll('.msg-form__send-button').forEach(b => {
-      if (!b.classList.contains('rf-toolbar-btn')) found.add(b);
-    });
-    // All buttons — catches overlay / new-message modal
-    document.querySelectorAll('button').forEach(b => {
-      if (rfIsSendBtn(b)) found.add(b);
-    });
-    return found;
-  }
-
-  // Find where to insert the RF button relative to the Send button.
-  // LinkedIn wraps Send in a block <div> inside a flex row:
-  //   div.msg-form__right-actions.display-flex   ← flex row  (grandparent)
-  //     div                                       ← wrapper   (parent)
-  //       button.msg-form__send-button            ← Send
-  // Check parent first (button directly in flex), then grandparent (wrapped).
+  // Walk up from sendBtn to find the flex toolbar row and return insertion point.
+  // LinkedIn DOM (confirmed from DevTools):
+  //   div.msg-form__right-actions.display-flex  ← flex row
+  //     div  (anonymous block wrapper)
+  //       button.msg-form__send-button
+  // Also handles the case where the button is a direct flex-row child.
   function rfGetInsertPoint(sendBtn) {
-    const parent = sendBtn.parentNode;
-    if (!parent || parent === document.body) return null;
+    const p1 = sendBtn.parentNode;
+    if (!p1 || p1 === document.body) return null;
 
-    const parentCls = (parent.className || '').toString();
-    if (parentCls.includes('display-flex') ||
-        parentCls.includes('right-actions') ||
-        getComputedStyle(parent).display === 'flex') {
-      return { container: parent, before: sendBtn };
+    // Parent is a flex row → insert before sendBtn inside it
+    const p1cls = (p1.className || '').toString();
+    if (p1cls.includes('display-flex') || p1cls.includes('right-actions') ||
+        getComputedStyle(p1).display === 'flex') {
+      return { container: p1, before: sendBtn };
     }
 
-    const gp = parent.parentNode;
-    if (gp && gp !== document.body) {
-      const gpCls = (gp.className || '').toString();
-      if (gpCls.includes('display-flex') ||
-          gpCls.includes('right-actions') ||
-          getComputedStyle(gp).display === 'flex') {
-        return { container: gp, before: parent };
+    // Grandparent is a flex row → insert before wrapper (p1) inside it
+    const p2 = p1.parentNode;
+    if (p2 && p2 !== document.body) {
+      const p2cls = (p2.className || '').toString();
+      if (p2cls.includes('display-flex') || p2cls.includes('right-actions') ||
+          getComputedStyle(p2).display === 'flex') {
+        return { container: p2, before: p1 };
+      }
+      // Great-grandparent (3 levels)
+      const p3 = p2.parentNode;
+      if (p3 && p3 !== document.body) {
+        const p3cls = (p3.className || '').toString();
+        if (p3cls.includes('display-flex') || p3cls.includes('right-actions') ||
+            getComputedStyle(p3).display === 'flex') {
+          return { container: p3, before: p2 };
+        }
       }
     }
 
-    // Fallback: insert before Send button in its immediate parent
-    return { container: parent, before: sendBtn };
+    return { container: p1, before: sendBtn };
   }
 
   function rfScan() {
-    const sendBtns = rfFindSendButtons();
+    try {
+      // ── Collect all Send buttons ───────────────────────────────────────────
+      const sendBtns = new Set();
+      // Direct class selector — most reliable for all LinkedIn compose surfaces
+      document.querySelectorAll('.msg-form__send-button').forEach(b => {
+        if (!b.classList.contains('rf-toolbar-btn')) sendBtns.add(b);
+      });
+      // All-button fallback — catches contexts that don't use the class
+      document.querySelectorAll('button').forEach(b => {
+        if (rfIsSendBtn(b)) sendBtns.add(b);
+      });
 
-    // Step 1: Remove RF buttons whose Send partner has disappeared
-    document.querySelectorAll('.rf-toolbar-btn').forEach(rf => {
-      if (!rf.isConnected) { rf.remove(); return; }
-      const next = rf.nextElementSibling;
-      if (!next) { rf.remove(); return; }
-      // Valid if next IS a Send button, or next CONTAINS one (wrapper-div case)
-      const valid = sendBtns.has(next) || [...sendBtns].some(b => next.contains(b));
-      if (!valid) rf.remove();
-    });
+      // ── Remove orphaned RF buttons ─────────────────────────────────────────
+      document.querySelectorAll('.rf-toolbar-btn').forEach(rf => {
+        if (!rf.isConnected) { rf.remove(); return; }
+        const next = rf.nextElementSibling;
+        if (!next) { rf.remove(); return; }
+        // Valid if sibling IS a Send button, or CONTAINS one (wrapper-div case)
+        const valid = sendBtns.has(next) || [...sendBtns].some(b => next.contains(b));
+        if (!valid) rf.remove();
+      });
 
-    // Step 2: Inject RF next to every Send button that does not have one
-    const seenContainers = new WeakSet();
-    sendBtns.forEach(btn => {
-      if (!btn.parentNode) return;
-
-      const ip = rfGetInsertPoint(btn);
-      if (!ip) return;
-
-      if (seenContainers.has(ip.container)) return;
-      seenContainers.add(ip.container);
-
-      const prev = ip.before.previousElementSibling;
-      if (prev && prev.classList.contains('rf-toolbar-btn')) return;
-
-      try { ip.container.insertBefore(createRFBtn(), ip.before); } catch (_) {}
-    });
+      // ── Inject RF next to each Send button that lacks one ─────────────────
+      const seenContainers = new WeakSet();
+      sendBtns.forEach(btn => {
+        if (!btn.parentNode) return;
+        const ip = rfGetInsertPoint(btn);
+        if (!ip) return;
+        if (seenContainers.has(ip.container)) return;
+        seenContainers.add(ip.container);
+        const prev = ip.before.previousElementSibling;
+        if (prev && prev.classList.contains('rf-toolbar-btn')) return;
+        ip.container.insertBefore(createRFBtn(), ip.before);
+      });
+    } catch (err) {
+      console.error('[RF] rfScan error:', err);
+    }
   }
 
   // Debounced MutationObserver — avoids calling rfScan on every tiny DOM change
@@ -571,7 +582,7 @@
   try { const _p = history.pushState.bind(history);    history.pushState    = function(...a){_p(...a);rfBurst();}; } catch(_){}
   try { const _r = history.replaceState.bind(history); history.replaceState = function(...a){_r(...a);rfBurst();}; } catch(_){}
 
-  console.log('[RF] v20 ready — pure-attribute send detection, no visibility gates');
+  console.log('[RF] v21 ready — singleton guard + try/catch scan + 3-level flex walk');
 
 })();
 
