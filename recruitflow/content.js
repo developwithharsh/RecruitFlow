@@ -420,35 +420,32 @@
   //  RF BUTTON — one immediately left of every LinkedIn Send button
   // ════════════════════════════════════════════════════════════════════════
 
-  // Detect LinkedIn's Send button — confirmed class from DevTools + aria fallbacks
+  // Detect LinkedIn's Send button across all 3 surfaces
   function rfFindSendButtons() {
     const found = new Set();
 
-    // Primary: LinkedIn's stable class (confirmed from DevTools)
-    document.querySelectorAll('.msg-form__send-button').forEach(b => found.add(b));
-
-    // Fallback: aria-label="Send" inside a messaging container
-    document.querySelectorAll('button[aria-label="Send"], button[aria-label="send"]').forEach(b => {
-      if (found.has(b)) return;
+    function addIfSend(b) {
+      if (!b || found.has(b)) return;
       if (b.classList.contains('rf-toolbar-btn')) return;
-      // Verify it's inside a messaging compose area
-      let el = b.parentElement;
-      for (let i = 0; i < 20; i++) {
-        if (!el || el === document.body) break;
-        const c = (el.className || '').toString().toLowerCase();
-        if (c.includes('msg-form') || c.includes('msg-overlay') || c.includes('msg-convo') || c.includes('msg-thread')) { found.add(b); break; }
-        if (el.getAttribute('role') === 'dialog') { found.add(b); break; }
-        el = el.parentElement;
+      const text = (b.textContent || '').replace(/\s+/g,' ').trim().toLowerCase();
+      const aria = (b.getAttribute('aria-label') || '').toLowerCase().trim();
+      const cls  = (b.className || '').toString().toLowerCase();
+      if (text === 'send' || aria === 'send' || aria === 'send message' || cls.includes('msg-form__send')) {
+        found.add(b);
       }
-    });
+    }
 
-    // Fallback: text content "Send" inside msg-form
-    document.querySelectorAll('.msg-form button, .msg-overlay-bubble button').forEach(b => {
-      if (found.has(b)) return;
-      if (b.classList.contains('rf-toolbar-btn')) return;
-      const text = (b.textContent || '').trim().toLowerCase();
-      if (text === 'send') found.add(b);
-    });
+    // Surface 1: Messaging thread (linkedin.com/messaging/*)
+    document.querySelectorAll('.msg-form__send-button').forEach(addIfSend);
+
+    // Surface 2: Feed overlay chat bubble
+    document.querySelectorAll('.msg-overlay-bubble button, .msg-overlay-list-bubble button').forEach(addIfSend);
+
+    // Surface 3: New message modal / any dialog
+    document.querySelectorAll('[role="dialog"] button').forEach(addIfSend);
+
+    // Surface 4: Any remaining msg-form context
+    document.querySelectorAll('[class*="msg-form"] button, [class*="msg-convo"] button').forEach(addIfSend);
 
     return found;
   }
